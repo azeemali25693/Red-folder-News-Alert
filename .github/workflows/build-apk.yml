@@ -20,6 +20,21 @@ jobs:
       - name: Add alarm permissions
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+      - name: Add red dot notification icon
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cat > android/app/src/main/res/drawable/ic_stat_redfolder.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M12,12m-8,0a8,8 0,1,0 16,0a8,8 0,1,0 -16,0"/>
+          </vector>
+          EOF
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('capacitor.config.json'));c.plugins=c.plugins||{};c.plugins.LocalNotifications={smallIcon:'ic_stat_redfolder',iconColor:'#D6291F'};fs.writeFileSync('capacitor.config.json',JSON.stringify(c,null,2));"
       - run: npx cap sync android
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug
