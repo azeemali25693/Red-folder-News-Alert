@@ -41,6 +41,13 @@ h3{font-size:14px;margin:22px 0 2px;color:var(--muted);font-weight:600}
 .status{font-size:13px;color:var(--muted);margin:18px 0 0;text-align:center}
 .status.err{color:var(--red)}
 .alertbtn{width:100%;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600}
+.tog{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;font-weight:600}
+.sw{position:relative;width:48px;height:28px;flex:none}
+.sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:999px;background:var(--line)}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked+i{background:var(--red)}
+.sw input:checked+i::after{transform:translateX(20px)}
 </style>
 </head>
 <body>
@@ -55,6 +62,8 @@ h3{font-size:14px;margin:22px 0 2px;color:var(--muted);font-weight:600}
   <div class="chips" id="chips"></div>
   <section id="today"></section>
   <section id="week"></section>
+  <div class="tog"><span>News alerts (5 min pehle / baad)</span><label class="sw"><input type="checkbox" id="tNews"><i></i></label></div>
+  <div class="tog"><span>Hourly reminders (7 AM - 12 AM PKT)</span><label class="sw"><input type="checkbox" id="tHour"><i></i></label></div>
   <button class="alertbtn" id="alertbtn" type="button">Turn on alerts</button>
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
@@ -241,32 +250,46 @@ function setupAlerts(LN) {
       .then(function () { return true; }, function () { return true; });
   });
 }
-var RULES = { USD: { before: [15, 5], after: 15 }, other: { before: [3], after: 3 } };
-var HINT = { 15: "Tayyar rahein.", 5: "Position check karein, news qareeb hai.", 3: "Ab naya trade na karein." };
+var HOURLY_START = 7, HOURLY_END = 24;
+function opt(k) { return read(k) !== "off"; }
 function mk(key, title, body, atMs) {
-  return { id: hashId(key), title: title, body: body, largeBody: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
+  var n = { id: hashId(key), title: title, body: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
+  if (body) n.largeBody = body;
+  return n;
 }
 function buildAlerts(list) {
   var now = Date.now(), out = [], days = {};
-  list.forEach(function (e) {
-    var r = e.country === "USD" ? RULES.USD : RULES.other, t = e.d.getTime(), name = e.country + " " + e.title;
-    var tail = [e.forecast ? "Forecast " + e.forecast : "", e.previous ? "Previous " + e.previous : ""].filter(Boolean).join(" | ");
-    r.before.forEach(function (m) {
-      var at = t - m * 60000;
-      if (at > now) out.push(mk("b" + m + e.date + name, "\uD83D\uDD34 " + name + " \u2013 " + m + " min baad", "News " + fmtTime(e.d) + ". " + (HINT[m] || "") + (tail ? "\n" + tail : ""), at));
+  if (opt("rf_news")) {
+    list.forEach(function (e) {
+      var t = e.d.getTime(), name = e.country + " " + e.title;
+      var tail = [e.forecast ? "Forecast " + e.forecast : "", e.previous ? "Previous " + e.previous : ""].filter(Boolean).join(" | ");
+      if (t - 300000 > now) {
+        out.push(mk("b" + e.date + name, name + " \u2013 5 min baad", "News " + fmtTime(e.d) + (tail ? "\n" + tail : ""), t - 300000));
+        out.push(mk("w" + e.date + name, "\u26A0\uFE0FWait for my confirmation then trade", "", t - 299000));
+      }
+      if (t + 300000 > now) out.push(mk("a" + e.date + name, "Trade Permission Allowed\u2705", "", t + 300000));
+      var k = dayKey(e.d);
+      (days[k] = days[k] || []).push(e);
     });
-    var after = t + r.after * 60000;
-    if (after > now) out.push(mk("a" + e.date + name, "\u2705 " + name + " \u2013 ab trade kar sakte hain", "News ko " + r.after + " min guzar gaye. Ab aap trade kar sakte hain.", after));
-    var k = dayKey(e.d);
-    (days[k] = days[k] || []).push(e);
-  });
-  Object.keys(days).forEach(function (k) {
-    var at = new Date(k + "T" + ("0" + MORNING_HOUR).slice(-2) + ":00:00+05:00");
-    var rest = days[k].filter(function (e) { return e.d > at; });
-    if (at.getTime() <= now || !rest.length) return;
-    var body = rest.map(function (e) { return (e.country === "USD" ? "\u2B50 " : "") + e.country + " " + e.title + " \u2013 " + fmtTime(e.d); }).join("\n");
-    out.push(mk("am" + k, "Aaj red folder news (" + rest.length + ")", body, at.getTime()));
-  });
+    Object.keys(days).forEach(function (k) {
+      var at = new Date(k + "T" + ("0" + MORNING_HOUR).slice(-2) + ":00:00+05:00");
+      var rest = days[k].filter(function (e) { return e.d > at; });
+      if (at.getTime() <= now || !rest.length) return;
+      var body = rest.map(function (e) { return e.country + " " + e.title + " \u2013 " + fmtTime(e.d); }).join("\n");
+      out.push(mk("am" + k, "Aaj red folder news (" + rest.length + ")", body, at.getTime()));
+    });
+  }
+  if (opt("rf_hour")) {
+    var base = new Date(dayKey(new Date(now)) + "T00:00:00+05:00").getTime();
+    for (var d = 0; d < 7; d++) {
+      for (var hr = HOURLY_START; hr <= HOURLY_END; hr++) {
+        var at2 = base + d * 86400000 + hr * 3600000;
+        if (at2 <= now) continue;
+        out.push(mk("h1" + at2, "If you trade on this time accept Stoploss\uD83D\uDE04", "", at2));
+        out.push(mk("h2" + at2, "Don't Revenge trade if SL hitt your day done \u2705", "", at2 + 1000));
+      }
+    }
+  }
   return out;
 }
 function autoSchedule() {
@@ -281,7 +304,7 @@ function autoSchedule() {
     }).then(function () {
       return items.length ? LN.schedule({ notifications: items }) : null;
     }).then(function () {
-      s.textContent = items.length + " alerts set (subah " + MORNING_HOUR + " baje PKT + news alerts)";
+      s.textContent = items.length + " alerts set (agle 7 din ke liye)";
     });
   }).catch(function (e) { s.className = "status err"; s.textContent = "Alerts set nahi hue: " + (e && e.message ? e.message : e); });
 }
@@ -297,6 +320,11 @@ $("testbtn").onclick = function () {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
+[["tNews", "rf_news"], ["tHour", "rf_hour"]].forEach(function (p) {
+  var c = $(p[0]);
+  c.checked = opt(p[1]);
+  c.onchange = function () { save(p[1], c.checked ? "on" : "off"); autoSchedule(); };
+});
 var saved = read("rf_filter");
 if (saved) filter = saved;
 load();
