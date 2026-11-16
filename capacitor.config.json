@@ -8,6 +8,11 @@
     },
     "LocalNotifications": {
       "iconColor": "#D6291F"
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 10000,
+      "resetWhenUpdate": true
     }
   }
 }
