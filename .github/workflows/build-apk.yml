@@ -1,14 +1,61 @@
-name: Build APK
+name: Build APK & OTA Update
+
 on:
   push:
     branches: [main]
-    # app.html badalne par APK dobara NAHI banegi. Sirf loader/config badle to banegi.
-    paths-ignore:
-      - 'www/app.html'
-      - '**.md'
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
-  build:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build_apk: ${{ steps.filter.outputs.build_apk }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            build="true"
+          elif ! gh release view apk-latest --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            build="true"
+          elif ! git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            build="true"
+          elif git diff --name-only HEAD~1 HEAD | grep -Eq '^(package\.json|package-lock\.json|capacitor\.config\.json|\.github/workflows/)'; then
+            build="true"
+          fi
+          echo "build_apk=$build" >> "$GITHUB_OUTPUT"
+
+  web-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package web bundle
+        run: |
+          VER="1.0.${{ github.run_number }}"
+          printf '{"version":"%s","repo":"%s"}\n' "$VER" "${{ github.repository }}" > www/ota.json
+          (cd www && zip -r ../web-bundle.zip *)
+          printf '{"version":"%s","url":"https://github.com/%s/releases/download/web-latest/web-bundle.zip"}\n' "$VER" "${{ github.repository }}" > version.json
+      - name: Publish OTA update to Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: web-latest
+          name: Web Update (Latest)
+          prerelease: true
+          files: |
+            web-bundle.zip
+            version.json
+
+  build-apk:
+    needs: [check, web-update]
+    if: needs.check.outputs.build_apk == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +66,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Set live app URL
-        run: sed -i "s#__APP_URL__#https://raw.githubusercontent.com/${{ github.repository }}/main/www/app.html#" www/index.html
       - run: npm install
       - run: npx cap add android
+      - name: Stamp initial OTA version
+        run: |
+          VER="1.0.${{ github.run_number }}"
+          printf '{"version":"%s","repo":"%s"}\n' "$VER" "${{ github.repository }}" > www/ota.json
       - name: Add alarm permissions
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
@@ -44,7 +93,16 @@ jobs:
       - run: npx cap sync android
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+      - name: Prepare APK file
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk red-folder.apk
+      - name: Publish APK to GitHub Release (direct .apk, no zip)
+        uses: softprops/action-gh-release@v3
         with:
-          name: red-folder-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: apk-latest
+          name: Red Folder APK
+          files: red-folder.apk
+      - name: Upload APK artifact (no zip)
+        uses: actions/upload-artifact@v7
+        with:
+          path: red-folder.apk
+          archive: false
