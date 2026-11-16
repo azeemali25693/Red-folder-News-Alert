@@ -3,66 +3,73 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#d6291f">
+<meta name="theme-color" content="#f3f6fc">
 <title>Red folder news</title>
 <style>
-:root{--bg:#f2f4f7;--surface:#fff;--ink:#14171c;--muted:#68707d;--line:#dde1e7;--red:#d6291f;--redtext:#fff;--ok:#1f7a4d}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1013;--surface:#171a1f;--ink:#eef0f3;--muted:#8d95a2;--line:#262a31;--red:#e5362b;--ok:#4cc38a}}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px)}
+:root{color-scheme:light;--bg:#f3f6fc;--s1:#ffffff;--s2:#e7edf8;--line:#dde4f0;--ink:#0f1a2e;--muted:#64708a;--red:#2563eb;--red2:#3b9cff;--glow:rgba(37,99,235,.3)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:radial-gradient(520px 280px at 90% -60px,rgba(37,99,235,.14),transparent 70%),radial-gradient(420px 260px at -10% 30%,rgba(56,163,255,.06),transparent 70%),var(--bg);background-repeat:no-repeat;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 28px)}
 .wrap{max-width:560px;margin:0 auto;padding:0 16px}
-header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 8px}
-h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
-.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
-button{font:inherit;border:0;cursor:pointer;color:inherit}
-.icon{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0 12px;scrollbar-width:none}
+#bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:9;overflow:hidden;opacity:0;transition:opacity .25s}
+#bar::after{content:"";position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--red),var(--red2),transparent);animation:slide 1.05s ease-in-out infinite}
+.loading #bar{opacity:1}
+@keyframes slide{from{left:-40%}to{left:100%}}
+header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 12px}
+h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:10px}
+h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 var(--glow);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(37,99,235,0)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
+.sub{color:var(--muted);font-size:13.5px;margin:3px 0 0}
+button{font:inherit;border:0;cursor:pointer;color:inherit;transition:transform .15s,background .2s}
+button:active{transform:scale(.96)}
+.icon{width:42px;height:42px;display:grid;place-items:center;background:var(--s1);border:1px solid var(--line);border-radius:50%}
+.loading #refresh svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 14px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600}
-.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.today{background:var(--red);color:var(--redtext);border-radius:18px;padding:18px 18px 8px;margin:4px 0 20px}
-.today.none{background:var(--surface);color:var(--ink);border:1px solid var(--line);padding-bottom:18px}
-.today h2{margin:0 0 4px;font-size:26px;line-height:1.15;letter-spacing:-.02em}
+.chip{flex:none;background:var(--s1);box-shadow:0 4px 12px -8px rgba(15,26,46,.3);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:14px;font-weight:600;color:var(--muted)}
+.chip.on{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-color:transparent;box-shadow:0 8px 20px -8px var(--glow)}
+.today{background:linear-gradient(160deg,#e3edff 0%,#f1f6ff 45%,var(--s1) 100%);border:1px solid rgba(37,99,235,.3);border-radius:24px;padding:20px 18px 6px;margin:2px 0 8px;box-shadow:0 24px 50px -24px var(--glow)}
+.today.none{background:var(--s1);border-color:var(--line);box-shadow:none;padding-bottom:18px}
+.today h2{margin:0 0 4px;font-size:26px;line-height:1.15;letter-spacing:-.03em;font-weight:800}
 .today.none h2{font-size:18px}
-.today .sub{color:inherit;opacity:.85}
-.today.none .sub{color:var(--muted);opacity:1}
-.ev{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;padding:12px 0;border-top:1px solid var(--line);align-items:baseline}
-.today .ev{border-top:1px solid rgba(255,255,255,.28)}
-.ev.past{opacity:.5}
-.cur{font-weight:800;font-size:15px;min-width:38px}
-.ttl{font-weight:600}
-.tm{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-.meta{grid-column:2 / 4;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-.today .meta{color:inherit;opacity:.85}
-h3{font-size:14px;margin:22px 0 2px;color:var(--muted);font-weight:600}
-.day{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px}
+.ev{display:grid;grid-template-columns:78px 1fr;gap:0 12px;padding:14px 0;border-top:1px solid rgba(15,26,46,.08);align-items:start}
+.today h2+.sub{margin-bottom:10px}
 .day .ev:first-child{border-top:0}
-.status{font-size:13px;color:var(--muted);margin:18px 0 0;text-align:center}
-.status.err{color:var(--red)}
-.alertbtn{width:100%;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600}
-.tog{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;font-weight:600}
-.sw{position:relative;width:48px;height:28px;flex:none}
-.sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:1}
-.sw i{position:absolute;inset:0;border-radius:999px;background:var(--line)}
-.sw i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
-.sw input:checked+i{background:var(--red)}
-.sw input:checked+i::after{transform:translateX(20px)}
+.ev.past{opacity:.42}
+.ev.next{background:linear-gradient(90deg,rgba(37,99,235,.13),transparent);box-shadow:inset 3px 0 0 var(--red);border-radius:12px;margin:0 -8px;padding-left:11px;padding-right:8px;border-top-color:transparent}
+.tm{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;white-space:nowrap;padding-top:1px}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.cur{background:rgba(37,99,235,.1);color:#1d4ed8;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:800;letter-spacing:.02em}
+.nx{background:var(--ink);color:var(--bg);border-radius:8px;padding:2px 8px;font-size:12px;font-weight:700}
+.ttl{font-weight:600;font-size:15px;line-height:1.3}
+.meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.meta b{color:var(--ink);font-weight:600}
+h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
+.day{background:var(--s1);border:1px solid var(--line);box-shadow:0 10px 24px -18px rgba(15,26,46,.25);border-radius:20px;padding:0 16px}
+.status{font-size:12.5px;color:var(--muted);margin:20px 0 0;text-align:center}
+.status.err{color:#c9241d}
+.alertbtn{width:100%;margin-top:14px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px;font-weight:700}
+#alertbtn{background:linear-gradient(135deg,var(--red),var(--red2));border-color:transparent;color:#fff;box-shadow:0 14px 28px -14px var(--glow)}
+.sk{border-radius:24px;background:linear-gradient(100deg,var(--s1) 30%,var(--s2) 50%,var(--s1) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
+.sk.h{height:200px}.sk.r{height:64px;margin-top:12px;border-radius:18px}
+@keyframes shim{from{background-position:120% 0}to{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:2s!important}}
 </style>
 </head>
 <body>
+<div id="bar"></div>
 <div class="wrap">
   <header>
     <div>
       <h1>Red folder news</h1>
       <p class="sub" id="now"></p>
     </div>
-    <button class="icon" id="refresh" type="button">Refresh</button>
+    <button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
   </header>
   <div class="chips" id="chips"></div>
   <section id="today"></section>
   <section id="week"></section>
-  <div class="tog"><span>News alerts (5 min pehle / baad)</span><label class="sw"><input type="checkbox" id="tNews"><i></i></label></div>
   <button class="alertbtn" id="alertbtn" type="button">Turn on alerts</button>
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
@@ -117,16 +124,36 @@ function fetchFeed() {
   return next();
 }
 
-function eventRow(e, now, showDay) {
-  var row = el("div", "ev" + (e.d < now && sameDay(e.d, now) ? " past" : ""));
-  row.appendChild(el("span", "cur", e.country));
-  row.appendChild(el("span", "ttl", e.title));
-  row.appendChild(el("span", "tm", fmtTime(e.d)));
-  var bits = [];
-  if (e.forecast) bits.push("Forecast " + e.forecast);
-  if (e.previous) bits.push("Previous " + e.previous);
-  if (bits.length) row.appendChild(el("span", "meta", bits.join("   ")));
+function eventRow(e, now, isNext) {
+  var row = el("div", "ev" + (e.d < now && sameDay(e.d, now) ? " past" : "") + (isNext ? " next" : ""));
+  row.appendChild(el("span", "tm", fmtTime(e.d).replace(" PKT", "")));
+  var b = el("div", "body"), top = el("div", "top");
+  top.appendChild(el("span", "cur", e.country));
+  if (isNext) top.appendChild(el("span", "nx", "Next"));
+  b.appendChild(top);
+  b.appendChild(el("div", "ttl", e.title));
+  if (e.forecast || e.previous) {
+    var m = el("div", "meta");
+    [["Forecast", e.forecast], ["Previous", e.previous]].forEach(function (x) {
+      if (!x[1]) return;
+      var sp = el("span", "", x[0] + " ");
+      sp.appendChild(el("b", "", x[1]));
+      m.appendChild(sp);
+    });
+    b.appendChild(m);
+  }
+  row.appendChild(b);
   return row;
+}
+
+function skeleton() {
+  var t = $("today"); t.textContent = ""; $("week").textContent = "";
+  t.appendChild(el("div", "sk h"));
+  for (var i = 0; i < 3; i++) t.appendChild(el("div", "sk r"));
+}
+function setLoading(on) {
+  document.body.classList.toggle("loading", on);
+  if (on && !events.length) skeleton();
 }
 
 function render() {
@@ -156,7 +183,9 @@ function render() {
     today.forEach(function (e) { if (cs.indexOf(e.country) < 0) cs.push(e.country); });
     card.appendChild(el("h2", "", "Today: red folder news"));
     card.appendChild(el("p", "sub", cs.join(", ") + " – " + today.length + (today.length === 1 ? " event" : " events")));
-    today.forEach(function (e) { card.appendChild(eventRow(e, now)); });
+    var nextEv = null;
+    today.forEach(function (e) { if (!nextEv && e.d >= now) nextEv = e; });
+    today.forEach(function (e) { card.appendChild(eventRow(e, now, e === nextEv)); });
   } else {
     card.appendChild(el("h2", "", "No red folder news today"));
     card.appendChild(el("p", "sub", filter === "ALL" ? "Aaj koi high-impact event nahi." : "Aaj " + filter + " ki koi high-impact event nahi."));
@@ -200,6 +229,7 @@ function notify(today) {
 
 function load() {
   var st = $("status");
+  setLoading(true);
   st.className = "status";
   st.textContent = "Loading…";
   return fetchFeed().then(function (data) {
@@ -222,7 +252,7 @@ function load() {
       st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
       render();
     }
-  });
+  }).then(function () { setLoading(false); });
 }
 
 $("refresh").onclick = load;
@@ -249,6 +279,11 @@ function setupAlerts(LN) {
       .then(function () { return true; }, function () { return true; });
   });
 }
+var SL_MSG = "Don't Revenge trade if SL hitt your day done \u26A0\uFE0F\u2705";
+var SL_REMINDERS = [
+  { hour: 7, key: "sl7", title: SL_MSG },
+  { hour: 19, key: "sl19", title: SL_MSG }
+];
 function opt(k) { return read(k) !== "off"; }
 function mk(key, title, body, atMs) {
   var n = { id: hashId(key), title: title, body: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
@@ -257,7 +292,7 @@ function mk(key, title, body, atMs) {
 }
 function buildAlerts(list) {
   var now = Date.now(), out = [], days = {};
-  if (opt("rf_news")) {
+  {
     list.forEach(function (e) {
       var t = e.d.getTime(), name = e.country + " " + e.title;
       var tail = [e.forecast ? "Forecast " + e.forecast : "", e.previous ? "Previous " + e.previous : ""].filter(Boolean).join(" | ");
@@ -276,6 +311,16 @@ function buildAlerts(list) {
       var body = rest.map(function (e) { return e.country + " " + e.title + " \u2013 " + fmtTime(e.d); }).join("\n");
       out.push(mk("am" + k, "Aaj red folder news (" + rest.length + ")", body, at.getTime()));
     });
+  }
+  {
+    var base = new Date(dayKey(new Date(now)) + "T00:00:00+05:00").getTime();
+    for (var d = 0; d < 7; d++) {
+      SL_REMINDERS.forEach(function (r) {
+        var at2 = base + d * 86400000 + r.hour * 3600000;
+        if (at2 <= now) return;
+        out.push(mk(r.key + at2, r.title, "", at2));
+      });
+    }
   }
   return out;
 }
@@ -307,11 +352,6 @@ $("testbtn").onclick = function () {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
-[["tNews", "rf_news"]].forEach(function (p) {
-  var c = $(p[0]);
-  c.checked = opt(p[1]);
-  c.onchange = function () { save(p[1], c.checked ? "on" : "off"); autoSchedule(); };
-});
 var saved = read("rf_filter");
 if (saved) filter = saved;
 load();
