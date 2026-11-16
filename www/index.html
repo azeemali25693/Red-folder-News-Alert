@@ -265,7 +265,10 @@ function load() {
   }).then(function () { setLoading(false); });
 }
 
-$("refresh").onclick = load;
+$("refresh").onclick = function () {
+  load();
+  checkWebUpdate();
+};
 $("alertbtn").onclick = function () {
   var b = $("alertbtn");
   try { if (navigator.vibrate) navigator.vibrate(100); } catch (e) {}
@@ -294,7 +297,6 @@ var SL_REMINDERS = [
   { hour: 7, key: "sl7", title: SL_MSG },
   { hour: 19, key: "sl19", title: SL_MSG }
 ];
-function opt(k) { return read(k) !== "off"; }
 function mk(key, title, body, atMs) {
   var n = { id: hashId(key), title: title, body: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
   if (body) n.largeBody = body;
@@ -362,11 +364,49 @@ $("testbtn").onclick = function () {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
+function getCU() {
+  try { if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return Capacitor.Plugins.CapacitorUpdater || null; } catch (e) {}
+  return null;
+}
+var otaBusy = false;
+function initOTA() {
+  var CU = getCU();
+  if (!CU) return;
+  try { CU.notifyAppReady().catch(function () {}); } catch (e) {}
+  checkWebUpdate();
+}
+function checkWebUpdate() {
+  var CU = getCU();
+  if (!CU || otaBusy) return;
+  otaBusy = true;
+  fetch("ota.json?t=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (local) {
+      if (!local || !local.repo) return;
+      save("rf_repo", local.repo);
+      var url = "https://github.com/" + local.repo + "/releases/download/web-latest/version.json?t=" + Date.now();
+      return fetch(url, { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (remote) {
+          if (!remote || !remote.version || !remote.url) return;
+          if (remote.version === local.version) return;
+          try { if (sessionStorage.getItem("rf_ota_tried") === remote.version) return; sessionStorage.setItem("rf_ota_tried", remote.version); } catch (e) {}
+          $("status").textContent = "App update " + remote.version + " download ho raha hai…";
+          return CU.download({ url: remote.url, version: remote.version }).then(function (bundle) {
+            return CU.set(bundle);
+          });
+        });
+    })
+    .catch(function () {})
+    .then(function () { otaBusy = false; });
+}
+
 var saved = read("rf_filter");
 if (saved) filter = saved;
+initOTA();
 load();
 setInterval(load, 30 * 60 * 1000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
+document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(); checkWebUpdate(); } });
 </script>
 </body>
 </html>
