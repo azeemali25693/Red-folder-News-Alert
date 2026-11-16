@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d6291f">
+<title>Red folder news</title>
+<style>
+:root{--bg:#f2f4f7;--surface:#fff;--ink:#14171c;--muted:#68707d;--line:#dde1e7;--red:#d6291f;--redtext:#fff;--ok:#1f7a4d}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1013;--surface:#171a1f;--ink:#eef0f3;--muted:#8d95a2;--line:#262a31;--red:#e5362b;--ok:#4cc38a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px)}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 8px}
+h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+button{font:inherit;border:0;cursor:pointer;color:inherit}
+.icon{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.today{background:var(--red);color:var(--redtext);border-radius:18px;padding:18px 18px 8px;margin:4px 0 20px}
+.today.none{background:var(--surface);color:var(--ink);border:1px solid var(--line);padding-bottom:18px}
+.today h2{margin:0 0 4px;font-size:26px;line-height:1.15;letter-spacing:-.02em}
+.today.none h2{font-size:18px}
+.today .sub{color:inherit;opacity:.85}
+.today.none .sub{color:var(--muted);opacity:1}
+.ev{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;padding:12px 0;border-top:1px solid var(--line);align-items:baseline}
+.today .ev{border-top:1px solid rgba(255,255,255,.28)}
+.ev.past{opacity:.5}
+.cur{font-weight:800;font-size:15px;min-width:38px}
+.ttl{font-weight:600}
+.tm{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.meta{grid-column:2 / 4;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.today .meta{color:inherit;opacity:.85}
+h3{font-size:14px;margin:22px 0 2px;color:var(--muted);font-weight:600}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px}
+.day .ev:first-child{border-top:0}
+.status{font-size:13px;color:var(--muted);margin:18px 0 0;text-align:center}
+.status.err{color:var(--red)}
+.alertbtn{width:100%;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Red folder news</h1>
+      <p class="sub" id="now"></p>
+    </div>
+    <button class="icon" id="refresh" type="button">Refresh</button>
+  </header>
+  <div class="chips" id="chips"></div>
+  <section id="today"></section>
+  <section id="week"></section>
+  <button class="alertbtn" id="alertbtn" type="button">Turn on alerts</button>
+  <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
+  <p class="status" id="status">Loading…</p>
+  <p class="status" id="sched"></p>
+</div>
+
+<script>
+var FEED = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+var PROXIES = [
+  function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
+  function (u) { return "https://corsproxy.io/?" + encodeURIComponent(u); }
+];
+var $ = function (id) { return document.getElementById(id); };
+var events = [];
+var filter = "ALL";
+var lastList = [];
+
+function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+function el(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+var TZ = "Asia/Karachi";
+function dayKey(d) { return d.toLocaleDateString("en-CA", { timeZone: TZ }); }
+function sameDay(a, b) { return dayKey(a) === dayKey(b); }
+function fmtTime(d) { return d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }) + " PKT"; }
+function fmtDay(d) { return d.toLocaleDateString("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "short" }); }
+
+function parse(data) {
+  return data
+    .filter(function (e) { return e.impact === "High"; })
+    .map(function (e) { e.d = new Date(e.date); return e; })
+    .filter(function (e) { return !isNaN(e.d); })
+    .sort(function (a, b) { return a.d - b.d; });
+}
+
+function fetchFeed() {
+  var urls = [FEED].concat(PROXIES.map(function (p) { return p(FEED); }));
+  var i = 0;
+  function next() {
+    if (i >= urls.length) return Promise.reject(new Error("all failed"));
+    return fetch(urls[i++], { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) { if (!Array.isArray(d)) throw new Error("bad data"); return d; })
+      .catch(next);
+  }
+  return next();
+}
+
+function eventRow(e, now, showDay) {
+  var row = el("div", "ev" + (e.d < now && sameDay(e.d, now) ? " past" : ""));
+  row.appendChild(el("span", "cur", e.country));
+  row.appendChild(el("span", "ttl", e.title));
+  row.appendChild(el("span", "tm", fmtTime(e.d)));
+  var bits = [];
+  if (e.forecast) bits.push("Forecast " + e.forecast);
+  if (e.previous) bits.push("Previous " + e.previous);
+  if (bits.length) row.appendChild(el("span", "meta", bits.join("   ")));
+  return row;
+}
+
+function render() {
+  var now = new Date();
+  $("now").textContent = fmtDay(now);
+
+  var currencies = [];
+  events.forEach(function (e) { if (currencies.indexOf(e.country) < 0) currencies.push(e.country); });
+  var chips = $("chips");
+  chips.textContent = "";
+  ["ALL"].concat(currencies).forEach(function (c) {
+    var b = el("button", "chip" + (c === filter ? " on" : ""), c === "ALL" ? "All" : c);
+    b.type = "button";
+    b.onclick = function () { filter = c; save("rf_filter", c); render(); autoSchedule(); };
+    chips.appendChild(b);
+  });
+
+  var list = events.filter(function (e) { return filter === "ALL" || e.country === filter; });
+  var today = list.filter(function (e) { return sameDay(e.d, now); });
+  lastList = list;
+
+  var box = $("today");
+  box.textContent = "";
+  var card = el("div", "today" + (today.length ? "" : " none"));
+  if (today.length) {
+    var cs = [];
+    today.forEach(function (e) { if (cs.indexOf(e.country) < 0) cs.push(e.country); });
+    card.appendChild(el("h2", "", "Today: red folder news"));
+    card.appendChild(el("p", "sub", cs.join(", ") + " – " + today.length + (today.length === 1 ? " event" : " events")));
+    today.forEach(function (e) { card.appendChild(eventRow(e, now)); });
+  } else {
+    card.appendChild(el("h2", "", "No red folder news today"));
+    card.appendChild(el("p", "sub", filter === "ALL" ? "Aaj koi high-impact event nahi." : "Aaj " + filter + " ki koi high-impact event nahi."));
+  }
+  box.appendChild(card);
+
+  var week = $("week");
+  week.textContent = "";
+  var days = {}, order = [];
+  list.forEach(function (e) {
+    if (sameDay(e.d, now) || e.d < now) return;
+    var k = dayKey(e.d);
+    if (!days[k]) { days[k] = []; order.push(k); }
+    days[k].push(e);
+  });
+  order.forEach(function (k) {
+    week.appendChild(el("h3", "", fmtDay(days[k][0].d)));
+    var d = el("div", "day");
+    days[k].forEach(function (e) { d.appendChild(eventRow(e, now)); });
+    week.appendChild(d);
+  });
+
+  document.title = today.length ? "Red: " + today.length + " today" : "Red folder news";
+  return today;
+}
+
+function notify(today) {
+  if (!today.length) return;
+  var key = new Date().toDateString();
+  if (read("rf_alerted") === key) return;
+  save("rf_alerted", key);
+  try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) {}
+  try {
+    if (window.Notification && Notification.permission === "granted") {
+      new Notification("Today: red folder news", {
+        body: today.map(function (e) { return e.country + " " + e.title + " " + fmtTime(e.d); }).join("\n")
+      });
+    }
+  } catch (e) {}
+}
+
+function load() {
+  var st = $("status");
+  st.className = "status";
+  st.textContent = "Loading…";
+  return fetchFeed().then(function (data) {
+    events = parse(data);
+    save("rf_cache", JSON.stringify(data));
+    save("rf_time", String(Date.now()));
+    st.textContent = "Updated " + fmtTime(new Date());
+    notify(render());
+    autoSchedule();
+  }).catch(function () {
+    var cached = read("rf_cache");
+    if (cached) {
+      try { events = parse(JSON.parse(cached)); } catch (e) { events = []; }
+      var t = new Date(Number(read("rf_time")));
+      st.className = "status err";
+      st.textContent = "Internet ya feed nahi mila. Purana data dikh raha hai (" + t.toLocaleString() + ").";
+      notify(render());
+    } else {
+      st.className = "status err";
+      st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
+      render();
+    }
+  });
+}
+
+$("refresh").onclick = load;
+$("alertbtn").onclick = function () {
+  var b = $("alertbtn");
+  try { if (navigator.vibrate) navigator.vibrate(100); } catch (e) {}
+  if (window.Notification && Notification.permission === "default") {
+    Notification.requestPermission().then(function () { b.textContent = "Alerts: allowed (page khula rakhein)"; });
+  } else {
+    b.textContent = "Alerts: banner + vibration on (page khula rakhein)";
+  }
+};
+
+var MORNING_HOUR = 8;
+function getLN() {
+  try { if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return Capacitor.Plugins.LocalNotifications || null; } catch (e) {}
+  return null;
+}
+function hashId(s) { var h = 7; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; }
+function setupAlerts(LN) {
+  return LN.requestPermissions().then(function (p) {
+    if (p.display !== "granted") return false;
+    return LN.createChannel({ id: "redfolder", name: "Red folder news", description: "High impact news alerts", importance: 5, visibility: 1, vibration: true })
+      .then(function () { return true; }, function () { return true; });
+  });
+}
+var RULES = { USD: { before: [15, 5], after: 15 }, other: { before: [3], after: 3 } };
+var HINT = { 15: "Tayyar rahein.", 5: "Position check karein, news qareeb hai.", 3: "Ab naya trade na karein." };
+function mk(key, title, body, atMs) {
+  return { id: hashId(key), title: title, body: body, largeBody: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
+}
+function buildAlerts(list) {
+  var now = Date.now(), out = [], days = {};
+  list.forEach(function (e) {
+    var r = e.country === "USD" ? RULES.USD : RULES.other, t = e.d.getTime(), name = e.country + " " + e.title;
+    var tail = [e.forecast ? "Forecast " + e.forecast : "", e.previous ? "Previous " + e.previous : ""].filter(Boolean).join(" | ");
+    r.before.forEach(function (m) {
+      var at = t - m * 60000;
+      if (at > now) out.push(mk("b" + m + e.date + name, "\uD83D\uDD34 " + name + " \u2013 " + m + " min baad", "News " + fmtTime(e.d) + ". " + (HINT[m] || "") + (tail ? "\n" + tail : ""), at));
+    });
+    var after = t + r.after * 60000;
+    if (after > now) out.push(mk("a" + e.date + name, "\u2705 " + name + " \u2013 ab trade kar sakte hain", "News ko " + r.after + " min guzar gaye. Ab aap trade kar sakte hain.", after));
+    var k = dayKey(e.d);
+    (days[k] = days[k] || []).push(e);
+  });
+  Object.keys(days).forEach(function (k) {
+    var at = new Date(k + "T" + ("0" + MORNING_HOUR).slice(-2) + ":00:00+05:00");
+    var rest = days[k].filter(function (e) { return e.d > at; });
+    if (at.getTime() <= now || !rest.length) return;
+    var body = rest.map(function (e) { return (e.country === "USD" ? "\u2B50 " : "") + e.country + " " + e.title + " \u2013 " + fmtTime(e.d); }).join("\n");
+    out.push(mk("am" + k, "Aaj red folder news (" + rest.length + ")", body, at.getTime()));
+  });
+  return out;
+}
+function autoSchedule() {
+  var LN = getLN(), s = $("sched");
+  s.className = "status";
+  if (!LN) { s.textContent = "Browser mode: alert sirf page khula ho tab. APK mein phone alerts milte hain."; return Promise.resolve(); }
+  return setupAlerts(LN).then(function (ok) {
+    if (!ok) { s.className = "status err"; s.textContent = "Notifications band hain. Phone Settings > Apps > Red Folder > Notifications on karein."; return; }
+    var items = buildAlerts(events);
+    return LN.getPending().then(function (p) {
+      return p.notifications.length ? LN.cancel({ notifications: p.notifications.map(function (n) { return { id: n.id }; }) }) : null;
+    }).then(function () {
+      return items.length ? LN.schedule({ notifications: items }) : null;
+    }).then(function () {
+      s.textContent = items.length + " alerts set (subah " + MORNING_HOUR + " baje PKT + news alerts)";
+    });
+  }).catch(function (e) { s.className = "status err"; s.textContent = "Alerts set nahi hue: " + (e && e.message ? e.message : e); });
+}
+var webAlert = $("alertbtn").onclick;
+$("alertbtn").onclick = function () { if (getLN()) autoSchedule(); else webAlert(); };
+$("testbtn").onclick = function () {
+  var LN = getLN(), s = $("sched");
+  if (!LN) { s.textContent = "Test sirf APK mein chalta hai."; return; }
+  setupAlerts(LN).then(function (ok) {
+    if (!ok) { s.className = "status err"; s.textContent = "Notification permission allow karein."; return; }
+    return LN.schedule({ notifications: [{ id: 999999999, title: "Test: red folder alert", body: "Ye dikh raha hai to alerts theek hain.", schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true }, channelId: "redfolder" }] })
+      .then(function () { s.className = "status"; s.textContent = "Test alert 10 second mein aayega. App minimize kar dein."; });
+  }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
+};
+
+var saved = read("rf_filter");
+if (saved) filter = saved;
+load();
+setInterval(load, 30 * 60 * 1000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

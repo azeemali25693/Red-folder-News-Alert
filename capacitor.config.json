@@ -1,0 +1,13 @@
+{
+  "appId": "com.redfolder.news",
+  "appName": "Red Folder",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "LocalNotifications": {
+      "iconColor": "#D6291F"
+    }
+  }
+}
