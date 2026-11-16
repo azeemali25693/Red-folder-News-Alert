@@ -19,33 +19,28 @@ header{display:flex;align-items:center;justify-content:space-between;padding:20p
 h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:10px}
 h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 var(--glow);animation:pulse 2s infinite}
 @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(37,99,235,0)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
-.sub{color:var(--muted);font-size:13.5px;margin:3px 0 0}
+.sub{color:var(--muted);font-size:13.5px;margin:3px 0 0;font-variant-numeric:tabular-nums}
 button{font:inherit;border:0;cursor:pointer;color:inherit;transition:transform .15s,background .2s}
 button:active{transform:scale(.96)}
-.icon{width:42px;height:42px;display:grid;place-items:center;background:var(--s1);border:1px solid var(--line);border-radius:50%}
-.loading #refresh svg{animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
 .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 14px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;background:var(--s1);box-shadow:0 4px 12px -8px rgba(15,26,46,.3);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:14px;font-weight:600;color:var(--muted)}
 .chip.on{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-color:transparent;box-shadow:0 8px 20px -8px var(--glow)}
-.today{background:linear-gradient(150deg,#d4261d 0%,#ee4234 60%,#ff6a4d 100%);color:#fff;border-radius:24px;padding:20px 18px 6px;margin:2px 0 8px;box-shadow:0 24px 44px -22px rgba(212,38,29,.7)}
-.today.none{background:var(--s1);color:var(--ink);border:1px solid var(--line);box-shadow:none;padding-bottom:18px}
-.today .sub{color:rgba(255,255,255,.85)}
-.today.none .sub{color:var(--muted)}
-.today .ev{border-top-color:rgba(255,255,255,.25)}
-.today .cur{background:rgba(255,255,255,.2);color:#fff}
-.today .meta{color:rgba(255,255,255,.82)}
-.today .meta b{color:#fff}
-.today .ev.next{background:rgba(255,255,255,.17);box-shadow:inset 3px 0 0 #fff}
-.today .nx{background:#fff;color:#d4261d}
-.today h2{margin:0 0 4px;font-size:26px;line-height:1.15;letter-spacing:-.03em;font-weight:800}
-.today.none h2{font-size:18px}
-.ev{display:grid;grid-template-columns:78px 1fr;gap:0 12px;padding:14px 0;border-top:1px solid rgba(15,26,46,.08);align-items:start}
+.today{background:#fff;border:1.5px solid rgba(212,38,29,.28);border-top:4px solid #d4261d;border-radius:20px;padding:16px 16px 6px;margin:2px 0 8px;box-shadow:0 12px 28px -18px rgba(212,38,29,.35)}
+.today.none{border-color:var(--line);border-top-color:var(--line);box-shadow:none;padding-bottom:16px}
+.today h2{margin:0 0 3px;font-size:19px;line-height:1.2;letter-spacing:-.02em;font-weight:800;color:#b91c1c;display:flex;align-items:center;gap:8px}
+.today h2::before{content:"";width:8px;height:8px;border-radius:50%;background:#d4261d;flex:none}
+.today.none h2{font-size:17px;color:var(--ink)}
+.today.none h2::before{display:none}
+.today .sub{color:var(--muted)}
 .today h2+.sub{margin-bottom:10px}
+.today .ev{border-top-color:rgba(212,38,29,.12)}
+.today .cur{background:rgba(212,38,29,.12);color:#c0231b}
+.today .ev.next{background:rgba(212,38,29,.07);border-radius:12px;margin:0 -8px;padding-left:10px;padding-right:10px;border-top-color:transparent}
+.today .nx{background:#d4261d;color:#fff}
+.ev{display:grid;grid-template-columns:78px 1fr;gap:0 12px;padding:14px 0;border-top:1px solid rgba(15,26,46,.08);align-items:start}
 .day .ev:first-child{border-top:0}
 .ev.past{opacity:.42}
-.ev.next{background:linear-gradient(90deg,rgba(37,99,235,.13),transparent);box-shadow:inset 3px 0 0 var(--red);border-radius:12px;margin:0 -8px;padding-left:11px;padding-right:8px;border-top-color:transparent}
 .tm{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;white-space:nowrap;padding-top:1px}
 .top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .cur{background:rgba(37,99,235,.1);color:#1d4ed8;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:800;letter-spacing:.02em}
@@ -57,10 +52,9 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
 .day{background:#fff6f5;border:1px solid rgba(212,38,29,.22);border-radius:20px;padding:0 16px;box-shadow:0 10px 24px -18px rgba(212,38,29,.5)}
 .day .ev{border-top-color:rgba(212,38,29,.14)}
 .day .cur{background:rgba(212,38,29,.12);color:#c0231b}
-.status{font-size:12.5px;color:var(--muted);margin:20px 0 0;text-align:center}
+.status{font-size:12.5px;color:var(--muted);margin:18px 0 0;text-align:center}
 .status.err{color:#c9241d}
 .alertbtn{width:100%;margin-top:14px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px;font-weight:700}
-#alertbtn{background:linear-gradient(135deg,var(--red),var(--red2));border-color:transparent;color:#fff;box-shadow:0 14px 28px -14px var(--glow)}
 .sk{border-radius:24px;background:linear-gradient(100deg,var(--s1) 30%,var(--s2) 50%,var(--s1) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
 .sk.h{height:200px}.sk.r{height:64px;margin-top:12px;border-radius:18px}
 @keyframes shim{from{background-position:120% 0}to{background-position:-120% 0}}
@@ -75,12 +69,10 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
       <h1>Red folder news</h1>
       <p class="sub" id="now"></p>
     </div>
-    <button class="icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
   </header>
   <div class="chips" id="chips"></div>
   <section id="today"></section>
   <section id="week"></section>
-  <button class="alertbtn" id="alertbtn" type="button">Turn on alerts</button>
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
   <p class="status" id="sched"></p>
@@ -96,6 +88,9 @@ var $ = function (id) { return document.getElementById(id); };
 var events = [];
 var filter = "ALL";
 var lastList = [];
+var lastRaw = "";
+var lastStateKey = "";
+var lastDayKey = "";
 
 function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -111,6 +106,7 @@ var TZ = "Asia/Karachi";
 function dayKey(d) { return d.toLocaleDateString("en-CA", { timeZone: TZ }); }
 function sameDay(a, b) { return dayKey(a) === dayKey(b); }
 function fmtTime(d) { return d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }) + " PKT"; }
+function fmtClock(d) { return d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit", second: "2-digit" }); }
 function fmtDay(d) { return d.toLocaleDateString("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "short" }); }
 
 function parse(data) {
@@ -166,9 +162,19 @@ function setLoading(on) {
   if (on && !events.length) skeleton();
 }
 
+function updateClock(now) {
+  $("now").textContent = fmtDay(now) + " \u2022 " + fmtClock(now);
+}
+
+function stateSig(now) {
+  return dayKey(now) + "|" + events.map(function (e) { return e.d < now ? "1" : "0"; }).join("");
+}
+
 function render() {
   var now = new Date();
-  $("now").textContent = fmtDay(now);
+  updateClock(now);
+  lastStateKey = stateSig(now);
+  lastDayKey = dayKey(now);
 
   var currencies = [];
   events.forEach(function (e) { if (currencies.indexOf(e.country) < 0) currencies.push(e.country); });
@@ -192,7 +198,7 @@ function render() {
     var cs = [];
     today.forEach(function (e) { if (cs.indexOf(e.country) < 0) cs.push(e.country); });
     card.appendChild(el("h2", "", "Today: red folder news"));
-    card.appendChild(el("p", "sub", cs.join(", ") + " – " + today.length + (today.length === 1 ? " event" : " events")));
+    card.appendChild(el("p", "sub", cs.join(", ") + " \u2013 " + today.length + (today.length === 1 ? " event" : " events")));
     var nextEv = null;
     today.forEach(function (e) { if (!nextEv && e.d >= now) nextEv = e; });
     today.forEach(function (e) { card.appendChild(eventRow(e, now, e === nextEv)); });
@@ -237,47 +243,43 @@ function notify(today) {
   } catch (e) {}
 }
 
-function load() {
+function load(silent) {
   var st = $("status");
-  setLoading(true);
-  st.className = "status";
-  st.textContent = "Loading…";
+  if (!silent) {
+    setLoading(true);
+    st.className = "status";
+    st.textContent = "Loading…";
+  }
   return fetchFeed().then(function (data) {
+    var raw = JSON.stringify(data);
+    var changed = raw !== lastRaw;
+    lastRaw = raw;
     events = parse(data);
-    save("rf_cache", JSON.stringify(data));
+    save("rf_cache", raw);
     save("rf_time", String(Date.now()));
-    st.textContent = "Updated " + fmtTime(new Date());
-    notify(render());
-    autoSchedule();
+    st.className = "status";
+    st.textContent = "Auto-sync ON \u2022 Updated " + fmtTime(new Date());
+    var today = render();
+    notify(today);
+    if (changed) autoSchedule();
   }).catch(function () {
     var cached = read("rf_cache");
     if (cached) {
-      try { events = parse(JSON.parse(cached)); } catch (e) { events = []; }
+      if (!events.length) {
+        try { events = parse(JSON.parse(cached)); } catch (e) { events = []; }
+        notify(render());
+        autoSchedule();
+      }
       var t = new Date(Number(read("rf_time")));
       st.className = "status err";
-      st.textContent = "Internet ya feed nahi mila. Purana data dikh raha hai (" + t.toLocaleString() + ").";
-      notify(render());
+      st.textContent = "Offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
     } else {
       st.className = "status err";
-      st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
+      st.textContent = "News load nahi hui. Internet check karein, auto-retry chalu hai.";
       render();
     }
-  }).then(function () { setLoading(false); });
+  }).then(function () { if (!silent) setLoading(false); });
 }
-
-$("refresh").onclick = function () {
-  load();
-  checkWebUpdate();
-};
-$("alertbtn").onclick = function () {
-  var b = $("alertbtn");
-  try { if (navigator.vibrate) navigator.vibrate(100); } catch (e) {}
-  if (window.Notification && Notification.permission === "default") {
-    Notification.requestPermission().then(function () { b.textContent = "Alerts: allowed (page khula rakhein)"; });
-  } else {
-    b.textContent = "Alerts: banner + vibration on (page khula rakhein)";
-  }
-};
 
 var MORNING_HOUR = 8;
 function getLN() {
@@ -339,7 +341,11 @@ function buildAlerts(list) {
 function autoSchedule() {
   var LN = getLN(), s = $("sched");
   s.className = "status";
-  if (!LN) { s.textContent = "Browser mode: alert sirf page khula ho tab. APK mein phone alerts milte hain."; return Promise.resolve(); }
+  if (!LN) {
+    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
+    s.textContent = "Browser mode: alerts auto-on (page khula rakhein).";
+    return Promise.resolve();
+  }
   return setupAlerts(LN).then(function (ok) {
     if (!ok) { s.className = "status err"; s.textContent = "Notifications band hain. Phone Settings > Apps > Red Folder > Notifications on karein."; return; }
     var items = buildAlerts(events);
@@ -348,12 +354,10 @@ function autoSchedule() {
     }).then(function () {
       return items.length ? LN.schedule({ notifications: items }) : null;
     }).then(function () {
-      s.textContent = items.length + " alerts set (agle 7 din ke liye)";
+      s.textContent = "Alerts auto-on \u2022 " + items.length + " alerts set (agle 7 din ke liye)";
     });
   }).catch(function (e) { s.className = "status err"; s.textContent = "Alerts set nahi hue: " + (e && e.message ? e.message : e); });
 }
-var webAlert = $("alertbtn").onclick;
-$("alertbtn").onclick = function () { if (getLN()) autoSchedule(); else webAlert(); };
 $("testbtn").onclick = function () {
   var LN = getLN(), s = $("sched");
   if (!LN) { s.textContent = "Test sirf APK mein chalta hai."; return; }
@@ -401,12 +405,24 @@ function checkWebUpdate() {
     .then(function () { otaBusy = false; });
 }
 
+function tickLive() {
+  var now = new Date();
+  updateClock(now);
+  var sig = stateSig(now);
+  if (events.length && sig !== lastStateKey) {
+    var dayChanged = dayKey(now) !== lastDayKey;
+    render();
+    if (dayChanged) autoSchedule();
+  }
+}
+
 var saved = read("rf_filter");
 if (saved) filter = saved;
 initOTA();
-load();
-setInterval(load, 30 * 60 * 1000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(); checkWebUpdate(); } });
+load(false);
+setInterval(tickLive, 1000);
+setInterval(function () { load(true); }, 60 * 1000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(true); checkWebUpdate(); } });
 </script>
 </body>
 </html>
