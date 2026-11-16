@@ -2,6 +2,10 @@ name: Build APK
 on:
   push:
     branches: [main]
+    # app.html badalne par APK dobara NAHI banegi. Sirf loader/config badle to banegi.
+    paths-ignore:
+      - 'www/app.html'
+      - '**.md'
   workflow_dispatch:
 jobs:
   build:
@@ -15,6 +19,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Set live app URL
+        run: sed -i "s#__APP_URL__#https://raw.githubusercontent.com/${{ github.repository }}/main/www/app.html#" www/index.html
       - run: npm install
       - run: npx cap add android
       - name: Add alarm permissions
