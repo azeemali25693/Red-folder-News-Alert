@@ -63,7 +63,6 @@ h3{font-size:14px;margin:22px 0 2px;color:var(--muted);font-weight:600}
   <section id="today"></section>
   <section id="week"></section>
   <div class="tog"><span>News alerts (5 min pehle / baad)</span><label class="sw"><input type="checkbox" id="tNews"><i></i></label></div>
-  <div class="tog"><span>Hourly reminders (7 AM - 12 AM PKT)</span><label class="sw"><input type="checkbox" id="tHour"><i></i></label></div>
   <button class="alertbtn" id="alertbtn" type="button">Turn on alerts</button>
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
@@ -250,7 +249,6 @@ function setupAlerts(LN) {
       .then(function () { return true; }, function () { return true; });
   });
 }
-var HOURLY_START = 7, HOURLY_END = 24;
 function opt(k) { return read(k) !== "off"; }
 function mk(key, title, body, atMs) {
   var n = { id: hashId(key), title: title, body: body, schedule: { at: new Date(atMs), allowWhileIdle: true }, channelId: "redfolder" };
@@ -278,17 +276,6 @@ function buildAlerts(list) {
       var body = rest.map(function (e) { return e.country + " " + e.title + " \u2013 " + fmtTime(e.d); }).join("\n");
       out.push(mk("am" + k, "Aaj red folder news (" + rest.length + ")", body, at.getTime()));
     });
-  }
-  if (opt("rf_hour")) {
-    var base = new Date(dayKey(new Date(now)) + "T00:00:00+05:00").getTime();
-    for (var d = 0; d < 7; d++) {
-      for (var hr = HOURLY_START; hr <= HOURLY_END; hr++) {
-        var at2 = base + d * 86400000 + hr * 3600000;
-        if (at2 <= now) continue;
-        out.push(mk("h1" + at2, "If you trade on this time accept Stoploss\uD83D\uDE04", "", at2));
-        out.push(mk("h2" + at2, "Don't Revenge trade if SL hitt your day done \u2705", "", at2 + 1000));
-      }
-    }
   }
   return out;
 }
@@ -320,7 +307,7 @@ $("testbtn").onclick = function () {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
-[["tNews", "rf_news"], ["tHour", "rf_hour"]].forEach(function (p) {
+[["tNews", "rf_news"]].forEach(function (p) {
   var c = $(p[0]);
   c.checked = opt(p[1]);
   c.onchange = function () { save(p[1], c.checked ? "on" : "off"); autoSchedule(); };
