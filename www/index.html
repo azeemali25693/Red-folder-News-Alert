@@ -52,7 +52,7 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
 .day{background:#fff6f5;border:1px solid rgba(212,38,29,.22);border-radius:20px;padding:0 16px;box-shadow:0 10px 24px -18px rgba(212,38,29,.5)}
 .day .ev{border-top-color:rgba(212,38,29,.14)}
 .day .cur{background:rgba(212,38,29,.12);color:#c0231b}
-.status{font-size:12.5px;color:var(--muted);margin:18px 0 0;text-align:center}
+.status{font-size:12.5px;color:var(--muted);margin:14px 0 0;text-align:center}
 .status.err{color:#c9241d}
 .alertbtn{width:100%;margin-top:14px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px;font-weight:700}
 .sk{border-radius:24px;background:linear-gradient(100deg,var(--s1) 30%,var(--s2) 50%,var(--s1) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
@@ -76,6 +76,7 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
   <p class="status" id="sched"></p>
+  <p class="status" id="otastatus"></p>
 </div>
 
 <script>
@@ -91,6 +92,7 @@ var lastList = [];
 var lastRaw = "";
 var lastStateKey = "";
 var lastDayKey = "";
+var lastFetchAt = 0;
 
 function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -117,14 +119,22 @@ function parse(data) {
     .sort(function (a, b) { return a.d - b.d; });
 }
 
+function parseJsonSafe(txt) {
+  if (!txt) return null;
+  if (typeof txt === "object") return txt;
+  try { return JSON.parse(txt); } catch (e) {}
+  try { return JSON.parse(atob(String(txt).trim())); } catch (e) {}
+  return null;
+}
+
 function fetchFeed() {
   var urls = [FEED].concat(PROXIES.map(function (p) { return p(FEED); }));
   var i = 0;
   function next() {
     if (i >= urls.length) return Promise.reject(new Error("all failed"));
     return fetch(urls[i++], { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (d) { if (!Array.isArray(d)) throw new Error("bad data"); return d; })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (t) { var d = parseJsonSafe(t); if (!Array.isArray(d)) throw new Error("bad data"); return d; })
       .catch(next);
   }
   return next();
@@ -251,6 +261,7 @@ function load(silent) {
     st.textContent = "Loading…";
   }
   return fetchFeed().then(function (data) {
+    lastFetchAt = Date.now();
     var raw = JSON.stringify(data);
     var changed = raw !== lastRaw;
     lastRaw = raw;
@@ -272,7 +283,7 @@ function load(silent) {
       }
       var t = new Date(Number(read("rf_time")));
       st.className = "status err";
-      st.textContent = "Offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
+      st.textContent = "Rate limit / offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
     } else {
       st.className = "status err";
       st.textContent = "News load nahi hui. Internet check karein, auto-retry chalu hai.";
@@ -373,6 +384,7 @@ function getCU() {
   return null;
 }
 var otaBusy = false;
+var lastOtaAt = 0;
 function initOTA() {
   var CU = getCU();
   if (!CU) return;
@@ -380,28 +392,38 @@ function initOTA() {
   checkWebUpdate();
 }
 function checkWebUpdate() {
-  var CU = getCU();
+  var CU = getCU(), ota = $("otastatus");
   if (!CU || otaBusy) return;
+  if (Date.now() - lastOtaAt < 15000) return;
   otaBusy = true;
-  fetch("ota.json?t=" + Date.now(), { cache: "no-store" })
-    .then(function (r) { return r.ok ? r.json() : null; })
+  lastOtaAt = Date.now();
+  var localFetch = window.CapacitorWebFetch || window.fetch;
+  localFetch("ota.json?t=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("ota.json " + r.status); return r.json(); })
     .then(function (local) {
-      if (!local || !local.repo) return;
-      save("rf_repo", local.repo);
+      if (!local || !local.repo) throw new Error("ota.json invalid");
+      ota.className = "status";
+      ota.textContent = "App v" + local.version + " \u2022 Checking update…";
       var url = "https://github.com/" + local.repo + "/releases/download/web-latest/version.json?t=" + Date.now();
       return fetch(url, { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (remote) {
-          if (!remote || !remote.version || !remote.url) return;
-          if (remote.version === local.version) return;
-          try { if (sessionStorage.getItem("rf_ota_tried") === remote.version) return; sessionStorage.setItem("rf_ota_tried", remote.version); } catch (e) {}
-          $("status").textContent = "App update " + remote.version + " download ho raha hai…";
+        .then(function (r) { if (!r.ok) throw new Error("version.json " + r.status); return r.text(); })
+        .then(function (txt) {
+          var remote = parseJsonSafe(txt);
+          if (!remote || !remote.version || !remote.url) throw new Error("version.json parse fail");
+          if (remote.version === local.version) {
+            ota.textContent = "App v" + local.version + " \u2022 Up to date";
+            return;
+          }
+          ota.textContent = "Updating to v" + remote.version + "…";
           return CU.download({ url: remote.url, version: remote.version }).then(function (bundle) {
             return CU.set(bundle);
           });
         });
     })
-    .catch(function () {})
+    .catch(function (e) {
+      ota.className = "status err";
+      ota.textContent = "OTA check error: " + (e && e.message ? e.message : e);
+    })
     .then(function () { otaBusy = false; });
 }
 
@@ -421,8 +443,13 @@ if (saved) filter = saved;
 initOTA();
 load(false);
 setInterval(tickLive, 1000);
-setInterval(function () { load(true); }, 60 * 1000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(true); checkWebUpdate(); } });
+setInterval(function () { load(true); }, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) {
+    if (Date.now() - lastFetchAt > 120000) load(true);
+    checkWebUpdate();
+  }
+});
 </script>
 </body>
 </html>
