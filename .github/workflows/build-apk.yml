@@ -28,7 +28,7 @@ jobs:
             build="true"
           elif ! git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
             build="true"
-          elif git diff --name-only HEAD~1 HEAD | grep -Eq '^(package\.json|package-lock\.json|capacitor\.config\.json|\.github/workflows/|assets/|icon\.png)'; then
+          elif git diff --name-only HEAD~1 HEAD | grep -Eq '^(package\.json|package-lock\.json|capacitor\.config\.json|\.github/workflows/|assets/|icon\.png|images\.png)'; then
             build="true"
           fi
           echo "build_apk=$build" >> "$GITHUB_OUTPUT"
@@ -88,23 +88,15 @@ jobs:
       - run: npm install
       - run: npx cap add android
       - name: Generate app icon
-        if: hashFiles('icon.png', 'assets/*') != ''
+        if: hashFiles('icon.png', 'images.png', 'assets/*') != ''
         run: |
           npm install --no-save @capacitor/assets
           mkdir -p assets
-          if [ -f icon.png ]; then cp icon.png assets/logo.png; fi
-          node <<'EOF'
-          const fs = require('fs');
-          const sharp = require('sharp');
-          (async () => {
-            const src = fs.existsSync('assets/icon.png') ? 'assets/icon.png' : 'assets/logo.png';
-            if (fs.existsSync(src)) {
-              await sharp(src).resize(1024, 1024, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile('assets/_logo.png');
-              fs.renameSync('assets/_logo.png', 'assets/logo.png');
-            }
-          })();
-          EOF
-          npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff'
+          if [ -f icon.png ]; then cp icon.png assets/logo.png
+          elif [ -f images.png ]; then cp images.png assets/logo.png
+          fi
+          BG=$(node -e "const fs=require('fs'),s=require('sharp');const src=fs.existsSync('assets/icon.png')?'assets/icon.png':'assets/logo.png';(async()=>{const {data}=await s(src).ensureAlpha().raw().toBuffer({resolveWithObject:true});const bg=data[3]<200?'#ffffff':'#'+[data[0],data[1],data[2]].map(x=>x.toString(16).padStart(2,'0')).join('');await s(src).resize(1024,1024,{fit:'contain',background:data[3]<200?{r:0,g:0,b:0,alpha:0}:bg}).png().toFile('assets/_logo.png');fs.renameSync('assets/_logo.png','assets/logo.png');console.log(bg);})();")
+          npx @capacitor/assets generate --android --iconBackgroundColor "$BG"
       - name: Disable splash screen (launch app directly)
         run: |
           sed -i 's/AppTheme\.NoActionBarLaunch/AppTheme.NoActionBar/g' android/app/src/main/AndroidManifest.xml
