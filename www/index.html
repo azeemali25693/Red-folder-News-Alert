@@ -76,9 +76,10 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
   <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
   <p class="status" id="sched"></p>
-  <p class="status" id="otastatus"></p>
+  <p class="status" id="ota"></p>
 </div>
 
+<script src="ota.js"></script>
 <script>
 var FEED = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 var PROXIES = [
@@ -92,7 +93,6 @@ var lastList = [];
 var lastRaw = "";
 var lastStateKey = "";
 var lastDayKey = "";
-var lastFetchAt = 0;
 
 function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -119,22 +119,14 @@ function parse(data) {
     .sort(function (a, b) { return a.d - b.d; });
 }
 
-function parseJsonSafe(txt) {
-  if (!txt) return null;
-  if (typeof txt === "object") return txt;
-  try { return JSON.parse(txt); } catch (e) {}
-  try { return JSON.parse(atob(String(txt).trim())); } catch (e) {}
-  return null;
-}
-
 function fetchFeed() {
   var urls = [FEED].concat(PROXIES.map(function (p) { return p(FEED); }));
   var i = 0;
   function next() {
     if (i >= urls.length) return Promise.reject(new Error("all failed"));
     return fetch(urls[i++], { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-      .then(function (t) { var d = parseJsonSafe(t); if (!Array.isArray(d)) throw new Error("bad data"); return d; })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) { if (!Array.isArray(d)) throw new Error("bad data"); return d; })
       .catch(next);
   }
   return next();
@@ -261,7 +253,6 @@ function load(silent) {
     st.textContent = "Loading…";
   }
   return fetchFeed().then(function (data) {
-    lastFetchAt = Date.now();
     var raw = JSON.stringify(data);
     var changed = raw !== lastRaw;
     lastRaw = raw;
@@ -283,7 +274,7 @@ function load(silent) {
       }
       var t = new Date(Number(read("rf_time")));
       st.className = "status err";
-      st.textContent = "Rate limit / offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
+      st.textContent = "Offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
     } else {
       st.className = "status err";
       st.textContent = "News load nahi hui. Internet check karein, auto-retry chalu hai.";
@@ -383,46 +374,52 @@ function getCU() {
   try { if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return Capacitor.Plugins.CapacitorUpdater || null; } catch (e) {}
   return null;
 }
+function parseRemoteJson(txt) {
+  var s = String(txt || "").trim();
+  if (!s) throw new Error("empty version.json");
+  if (s.charAt(0) !== "{") s = atob(s);
+  return JSON.parse(s);
+}
 var otaBusy = false;
-var lastOtaAt = 0;
+var lastOtaCheck = 0;
 function initOTA() {
-  var CU = getCU();
-  if (!CU) return;
+  var CU = getCU(), elOta = $("ota");
+  if (!CU) { elOta.textContent = ""; return; }
   try { CU.notifyAppReady().catch(function () {}); } catch (e) {}
   checkWebUpdate();
 }
 function checkWebUpdate() {
-  var CU = getCU(), ota = $("otastatus");
+  var CU = getCU(), elOta = $("ota");
   if (!CU || otaBusy) return;
-  if (Date.now() - lastOtaAt < 15000) return;
+  if (Date.now() - lastOtaCheck < 15000) return;
+  var local = window.OTA_INFO;
+  if (!local || !local.repo) {
+    elOta.className = "status err";
+    elOta.textContent = "OTA info missing";
+    return;
+  }
   otaBusy = true;
-  lastOtaAt = Date.now();
-  var localFetch = window.CapacitorWebFetch || window.fetch;
-  localFetch("ota.json?t=" + Date.now(), { cache: "no-store" })
-    .then(function (r) { if (!r.ok) throw new Error("ota.json " + r.status); return r.json(); })
-    .then(function (local) {
-      if (!local || !local.repo) throw new Error("ota.json invalid");
-      ota.className = "status";
-      ota.textContent = "App v" + local.version + " \u2022 Checking update…";
-      var url = "https://github.com/" + local.repo + "/releases/download/web-latest/version.json?t=" + Date.now();
-      return fetch(url, { cache: "no-store" })
-        .then(function (r) { if (!r.ok) throw new Error("version.json " + r.status); return r.text(); })
-        .then(function (txt) {
-          var remote = parseJsonSafe(txt);
-          if (!remote || !remote.version || !remote.url) throw new Error("version.json parse fail");
-          if (remote.version === local.version) {
-            ota.textContent = "App v" + local.version + " \u2022 Up to date";
-            return;
-          }
-          ota.textContent = "Updating to v" + remote.version + "…";
-          return CU.download({ url: remote.url, version: remote.version }).then(function (bundle) {
-            return CU.set(bundle);
-          });
-        });
+  lastOtaCheck = Date.now();
+  elOta.className = "status";
+  elOta.textContent = "OTA v" + local.version + " checking…";
+  var url = "https://github.com/" + local.repo + "/releases/download/web-latest/version.json?t=" + Date.now();
+  fetch(url, { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(parseRemoteJson)
+    .then(function (remote) {
+      if (!remote || !remote.version || !remote.url) throw new Error("bad version.json");
+      if (remote.version === local.version) {
+        elOta.textContent = "OTA v" + local.version + " (latest)";
+        return;
+      }
+      elOta.textContent = "Updating v" + local.version + " \u2192 v" + remote.version + "…";
+      return CU.download({ url: remote.url, version: remote.version }).then(function (bundle) {
+        return CU.set(bundle);
+      });
     })
     .catch(function (e) {
-      ota.className = "status err";
-      ota.textContent = "OTA check error: " + (e && e.message ? e.message : e);
+      elOta.className = "status err";
+      elOta.textContent = "OTA v" + local.version + " error: " + (e && e.message ? e.message : e);
     })
     .then(function () { otaBusy = false; });
 }
@@ -443,13 +440,8 @@ if (saved) filter = saved;
 initOTA();
 load(false);
 setInterval(tickLive, 1000);
-setInterval(function () { load(true); }, 5 * 60 * 1000);
-document.addEventListener("visibilitychange", function () {
-  if (!document.hidden) {
-    if (Date.now() - lastFetchAt > 120000) load(true);
-    checkWebUpdate();
-  }
-});
+setInterval(function () { load(true); }, 60 * 1000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(true); checkWebUpdate(); } });
 </script>
 </body>
 </html>
