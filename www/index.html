@@ -141,15 +141,40 @@ function parse(data) {
     .sort(function (a, b) { return a.d - b.d; });
 }
 
+function fetchWithTimeout(url, ms) {
+  return new Promise(function (resolve, reject) {
+    var done = false;
+    var timer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      reject(new Error("timeout"));
+    }, ms);
+    fetch(url, { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (!Array.isArray(d)) throw new Error("bad data");
+        resolve(d);
+      })
+      .catch(function (err) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 function fetchFeed() {
   var urls = [FEED].concat(PROXIES.map(function (p) { return p(FEED); }));
   var i = 0;
-  function next() {
-    if (i >= urls.length) return Promise.reject(new Error("all failed"));
-    return fetch(urls[i++], { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (d) { if (!Array.isArray(d)) throw new Error("bad data"); return d; })
-      .catch(next);
+  var lastErr = null;
+  function next(err) {
+    if (err) lastErr = err;
+    if (i >= urls.length) return Promise.reject(lastErr || new Error("all failed"));
+    return fetchWithTimeout(urls[i++], 7000).catch(next);
   }
   return next();
 }
@@ -260,13 +285,25 @@ function notify(today) {
   } catch (e) {}
 }
 
-function load(silent) {
+function load(force) {
   var st = $("status");
-  if (!silent) {
-    setLoading(true);
-    st.className = "status";
-    st.textContent = "Loading…";
+  var cached = read("rf_cache");
+  var cachedAt = Number(read("rf_time") || 0);
+  var fresh = cached && cachedAt && (Date.now() - cachedAt < 30 * 60 * 1000);
+  if (!force && fresh) {
+    try {
+      lastRaw = cached;
+      events = parse(JSON.parse(cached));
+      st.className = "status";
+      st.textContent = "Synced " + fmtTime(new Date(cachedAt));
+      notify(render());
+      autoSchedule();
+      return Promise.resolve();
+    } catch (e) {}
   }
+  setLoading(true);
+  st.className = "status";
+  st.textContent = "Loading…";
   return fetchFeed().then(function (data) {
     var raw = JSON.stringify(data);
     var changed = raw !== lastRaw;
@@ -278,28 +315,28 @@ function load(silent) {
     st.textContent = "Updated " + fmtTime(new Date());
     var today = render();
     notify(today);
-    if (changed) autoSchedule();
-  }).catch(function () {
-    var cached = read("rf_cache");
+    if (changed || !force) autoSchedule();
+  }).catch(function (err) {
     if (cached) {
       if (!events.length) {
         try { events = parse(JSON.parse(cached)); } catch (e) { events = []; }
         notify(render());
         autoSchedule();
       }
-      var t = new Date(Number(read("rf_time")));
-      st.className = "status err";
-      st.textContent = "Internet ya feed nahi mila. Purana data dikh raha hai (" + t.toLocaleString() + ").";
+      var t = new Date(cachedAt);
+      var msg = String(err && err.message || "");
+      st.className = "status" + (Date.now() - cachedAt > 6 * 3600 * 1000 ? " err" : "");
+      st.textContent = (msg.indexOf("429") >= 0 ? "Feed rate-limit (thori der baad try karein)" : "Feed busy/offline") + " \u2022 Data: " + fmtTime(t);
     } else {
       st.className = "status err";
       st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
       render();
     }
-  }).then(function () { if (!silent) setLoading(false); });
+  }).then(function () { setLoading(false); });
 }
 
 $("refresh").onclick = function () {
-  load(false);
+  load(true);
   checkWebUpdate();
 };
 
