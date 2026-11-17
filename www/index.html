@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f3f6fc">
 <title>Red folder news</title>
-<style>
+<style id="app-css">
+/*CSS_START*/
 :root{color-scheme:light;--bg:#f3f6fc;--s1:#ffffff;--s2:#e7edf8;--line:#dde4f0;--ink:#0f1a2e;--muted:#64708a;--red:#2563eb;--red2:#3b9cff;--glow:rgba(37,99,235,.3)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;background:var(--bg)}
@@ -59,9 +60,12 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
 .sk.h{height:200px}.sk.r{height:64px;margin-top:12px;border-radius:18px}
 @keyframes shim{from{background-position:120% 0}to{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:2s!important}}
+/*CSS_END*/
 </style>
 </head>
 <body>
+<div id="app-root">
+<!--BODY_START-->
 <div id="bar"></div>
 <div class="wrap">
   <header>
@@ -78,9 +82,11 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
   <p class="status" id="sched"></p>
   <p class="status" id="ota"></p>
 </div>
+<!--BODY_END-->
+</div>
 
-<script src="ota.js"></script>
-<script>
+<script id="app-js" type="text/plain">
+//JS_START
 var FEED = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 var PROXIES = [
   function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
@@ -370,56 +376,58 @@ $("testbtn").onclick = function () {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
-function getCU() {
-  try { if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return Capacitor.Plugins.CapacitorUpdater || null; } catch (e) {}
-  return null;
+function verNum(v) {
+  var m = String(v || "").match(/(\d+)$/);
+  return m ? Number(m[1]) : 0;
+}
+function b64ToUtf8(b64) {
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
 }
 function parseRemoteJson(txt) {
   var s = String(txt || "").trim();
-  if (!s) throw new Error("empty version.json");
-  if (s.charAt(0) !== "{") s = atob(s);
+  if (!s) throw new Error("empty response");
+  if (s.charAt(0) !== "{") s = b64ToUtf8(s);
   return JSON.parse(s);
 }
 var otaBusy = false;
 var lastOtaCheck = 0;
-function initOTA() {
-  var CU = getCU(), elOta = $("ota");
-  if (!CU) { elOta.textContent = ""; return; }
-  try { CU.notifyAppReady().catch(function () {}); } catch (e) {}
-  checkWebUpdate();
-}
 function checkWebUpdate() {
-  var CU = getCU(), elOta = $("ota");
-  if (!CU || otaBusy) return;
-  if (Date.now() - lastOtaCheck < 15000) return;
-  var local = window.OTA_INFO;
-  if (!local || !local.repo) {
-    elOta.className = "status err";
-    elOta.textContent = "OTA info missing";
-    return;
-  }
+  var elOta = $("ota");
+  var repo = window.CURRENT_REPO || "";
+  var curVer = window.CURRENT_VER || "";
+  if (!window.Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
+  if (!repo || repo.indexOf("__") === 0) return;
+  if (otaBusy || Date.now() - lastOtaCheck < 15000) return;
   otaBusy = true;
   lastOtaCheck = Date.now();
   elOta.className = "status";
-  elOta.textContent = "OTA v" + local.version + " checking…";
-  var url = "https://github.com/" + local.repo + "/releases/download/web-latest/version.json?t=" + Date.now();
-  fetch(url, { cache: "no-store" })
+  elOta.textContent = "OTA v" + curVer + " checking…";
+  var base = "https://github.com/" + repo + "/releases/download/web-latest/";
+  fetch(base + "version.json?t=" + Date.now(), { cache: "no-store" })
     .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
     .then(parseRemoteJson)
     .then(function (remote) {
-      if (!remote || !remote.version || !remote.url) throw new Error("bad version.json");
-      if (remote.version === local.version) {
-        elOta.textContent = "OTA v" + local.version + " (latest)";
+      if (!remote || !remote.version) throw new Error("bad version.json");
+      if (verNum(remote.version) <= verNum(curVer)) {
+        elOta.textContent = "OTA v" + curVer + " (latest)";
         return;
       }
-      elOta.textContent = "Updating v" + local.version + " \u2192 v" + remote.version + "…";
-      return CU.download({ url: remote.url, version: remote.version }).then(function (bundle) {
-        return CU.set(bundle);
-      });
+      elOta.textContent = "Updating v" + curVer + " \u2192 v" + remote.version + "…";
+      return fetch(base + "app.json?t=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error("app HTTP " + r.status); return r.text(); })
+        .then(parseRemoteJson)
+        .then(function (bundle) {
+          if (!bundle || !bundle.version || !bundle.css || !bundle.body || !bundle.js) throw new Error("bad app.json");
+          save("rf_ota_bundle", JSON.stringify(bundle));
+          location.reload();
+        });
     })
     .catch(function (e) {
       elOta.className = "status err";
-      elOta.textContent = "OTA v" + local.version + " error: " + (e && e.message ? e.message : e);
+      elOta.textContent = "OTA v" + curVer + " error: " + (e && e.message ? e.message : e);
     })
     .then(function () { otaBusy = false; });
 }
@@ -437,11 +445,45 @@ function tickLive() {
 
 var saved = read("rf_filter");
 if (saved) filter = saved;
-initOTA();
+checkWebUpdate();
 load(false);
 setInterval(tickLive, 1000);
 setInterval(function () { load(true); }, 60 * 1000);
 document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(true); checkWebUpdate(); } });
+//JS_END
+</script>
+
+<script id="app-boot">
+(function () {
+  var BUILTIN_VER = "__OTA_VER__";
+  var OTA_REPO = "__OTA_REPO__";
+  function vNum(v) {
+    var m = String(v || "").match(/(\d+)$/);
+    return m ? Number(m[1]) : 0;
+  }
+  window.CURRENT_REPO = OTA_REPO;
+  var applied = false;
+  try {
+    var raw = localStorage.getItem("rf_ota_bundle");
+    if (raw) {
+      var b = JSON.parse(raw);
+      if (b && b.version && b.css && b.body && b.js && vNum(b.version) > vNum(BUILTIN_VER)) {
+        document.getElementById("app-css").textContent = b.css;
+        document.getElementById("app-root").innerHTML = b.body;
+        window.CURRENT_VER = b.version;
+        (new Function(b.js))();
+        applied = true;
+      }
+    }
+  } catch (e) {
+    try { localStorage.removeItem("rf_ota_bundle"); } catch (x) {}
+    applied = false;
+  }
+  if (!applied) {
+    window.CURRENT_VER = BUILTIN_VER;
+    (new Function(document.getElementById("app-js").textContent))();
+  }
+})();
 </script>
 </body>
 </html>
