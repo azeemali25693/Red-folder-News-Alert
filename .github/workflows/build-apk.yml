@@ -40,6 +40,7 @@ jobs:
       - name: Package web bundle
         run: |
           VER="1.0.${{ github.run_number }}"
+          printf 'window.OTA_INFO={"version":"%s","repo":"%s"};\n' "$VER" "${{ github.repository }}" > www/ota.js
           printf '{"version":"%s","repo":"%s"}\n' "$VER" "${{ github.repository }}" > www/ota.json
           (cd www && zip -r ../web-bundle.zip *)
           printf '{"version":"%s","url":"https://github.com/%s/releases/download/web-latest/web-bundle.zip"}\n' "$VER" "${{ github.repository }}" > version.json
@@ -71,6 +72,7 @@ jobs:
       - name: Stamp initial OTA version
         run: |
           VER="1.0.${{ github.run_number }}"
+          printf 'window.OTA_INFO={"version":"%s","repo":"%s"};\n' "$VER" "${{ github.repository }}" > www/ota.js
           printf '{"version":"%s","repo":"%s"}\n' "$VER" "${{ github.repository }}" > www/ota.json
       - name: Add alarm permissions
         run: |
