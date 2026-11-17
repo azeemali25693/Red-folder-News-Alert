@@ -16,13 +16,19 @@ body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.4 system-ui,-apple-s
 #bar::after{content:"";position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--red),var(--red2),transparent);animation:slide 1.05s ease-in-out infinite}
 .loading #bar{opacity:1}
 @keyframes slide{from{left:-40%}to{left:100%}}
-header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 12px}
-h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:10px}
-h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 var(--glow);animation:pulse 2s infinite}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 0 12px}
+h1{font-size:21px;margin:0;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;white-space:nowrap}
+h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 var(--glow);animation:pulse 2s infinite;flex:none}
 @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(37,99,235,0)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
-.sub{color:var(--muted);font-size:13.5px;margin:3px 0 0;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:13px;margin:3px 0 0;font-variant-numeric:tabular-nums}
 button{font:inherit;border:0;cursor:pointer;color:inherit;transition:transform .15s,background .2s}
 button:active{transform:scale(.96)}
+.hbtns{display:flex;align-items:center;gap:8px;flex:none}
+.icon{width:40px;height:40px;display:grid;place-items:center;background:var(--s1);border:1px solid var(--line);border-radius:50%;box-shadow:0 4px 12px -8px rgba(15,26,46,.35)}
+.loading #refresh svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.test3d{height:38px;padding:0 11px;border-radius:12px;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;letter-spacing:.01em;color:#fff;background:linear-gradient(180deg,#f44336 0%,#d4261d 100%);border:1px solid #b91c1c;box-shadow:0 4px 0 #991b1b,0 8px 16px -6px rgba(212,38,29,.55);transition:transform .08s,box-shadow .08s}
+.test3d:active{transform:translateY(3px);box-shadow:0 1px 0 #991b1b,0 3px 6px -3px rgba(212,38,29,.45)}
 .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 14px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;background:var(--s1);box-shadow:0 4px 12px -8px rgba(15,26,46,.3);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:14px;font-weight:600;color:var(--muted)}
@@ -55,7 +61,6 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
 .day .cur{background:rgba(212,38,29,.12);color:#c0231b}
 .status{font-size:12.5px;color:var(--muted);margin:14px 0 0;text-align:center}
 .status.err{color:#c9241d}
-.alertbtn{width:100%;margin-top:14px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px;font-weight:700}
 .sk{border-radius:24px;background:linear-gradient(100deg,var(--s1) 30%,var(--s2) 50%,var(--s1) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
 .sk.h{height:200px}.sk.r{height:64px;margin-top:12px;border-radius:18px}
 @keyframes shim{from{background-position:120% 0}to{background-position:-120% 0}}
@@ -73,11 +78,19 @@ h3{font-size:13.5px;margin:26px 4px 8px;color:var(--muted);font-weight:600}
       <h1>Red folder news</h1>
       <p class="sub" id="now"></p>
     </div>
+    <div class="hbtns">
+      <button class="test3d" id="testbtn" type="button" aria-label="Send test alert (10 sec)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Test</span>
+      </button>
+      <button class="icon" id="refresh" type="button" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+      </button>
+    </div>
   </header>
   <div class="chips" id="chips"></div>
   <section id="today"></section>
   <section id="week"></section>
-  <button class="alertbtn" id="testbtn" type="button">Send test alert (10 sec)</button>
   <p class="status" id="status">Loading…</p>
   <p class="status" id="sched"></p>
   <p class="status" id="ota"></p>
@@ -266,7 +279,7 @@ function load(silent) {
     save("rf_cache", raw);
     save("rf_time", String(Date.now()));
     st.className = "status";
-    st.textContent = "Auto-sync ON \u2022 Updated " + fmtTime(new Date());
+    st.textContent = "Updated " + fmtTime(new Date());
     var today = render();
     notify(today);
     if (changed) autoSchedule();
@@ -280,14 +293,19 @@ function load(silent) {
       }
       var t = new Date(Number(read("rf_time")));
       st.className = "status err";
-      st.textContent = "Offline \u2022 Purana data dikh raha hai (" + t.toLocaleString() + ")";
+      st.textContent = "Internet ya feed nahi mila. Purana data dikh raha hai (" + t.toLocaleString() + ").";
     } else {
       st.className = "status err";
-      st.textContent = "News load nahi hui. Internet check karein, auto-retry chalu hai.";
+      st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
       render();
     }
   }).then(function () { if (!silent) setLoading(false); });
 }
+
+$("refresh").onclick = function () {
+  load(false);
+  checkWebUpdate();
+};
 
 var MORNING_HOUR = 8;
 function getLN() {
@@ -367,12 +385,21 @@ function autoSchedule() {
   }).catch(function (e) { s.className = "status err"; s.textContent = "Alerts set nahi hue: " + (e && e.message ? e.message : e); });
 }
 $("testbtn").onclick = function () {
-  var LN = getLN(), s = $("sched");
-  if (!LN) { s.textContent = "Test sirf APK mein chalta hai."; return; }
+  var LN = getLN(), s = $("sched"), btn = $("testbtn"), lbl = btn.querySelector("span");
+  if (!LN) {
+    s.className = "status";
+    s.textContent = "Test sirf APK mein chalta hai.";
+    if (lbl) { lbl.textContent = "APK"; setTimeout(function () { lbl.textContent = "Test"; }, 2000); }
+    return;
+  }
   setupAlerts(LN).then(function (ok) {
     if (!ok) { s.className = "status err"; s.textContent = "Notification permission allow karein."; return; }
     return LN.schedule({ notifications: [{ id: 999999999, title: "Test: red folder alert", body: "Ye dikh raha hai to alerts theek hain.", schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true }, channelId: "redfolder" }] })
-      .then(function () { s.className = "status"; s.textContent = "Test alert 10 second mein aayega. App minimize kar dein."; });
+      .then(function () {
+        s.className = "status";
+        s.textContent = "Test alert 10 second mein aayega. App minimize kar dein.";
+        if (lbl) { lbl.textContent = "10s \u2713"; setTimeout(function () { lbl.textContent = "Test"; }, 2500); }
+      });
   }).catch(function (e) { s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
 };
 
@@ -448,8 +475,7 @@ if (saved) filter = saved;
 checkWebUpdate();
 load(false);
 setInterval(tickLive, 1000);
-setInterval(function () { load(true); }, 60 * 1000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(true); checkWebUpdate(); } });
+document.addEventListener("visibilitychange", function () { if (!document.hidden) checkWebUpdate(); });
 //JS_END
 </script>
 
