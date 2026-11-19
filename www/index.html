@@ -97,7 +97,10 @@ button:active{transform:scale(.96)}
 
 <script id="app-js" type="text/plain">
 //JS_START
-var FEED = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+var MAJORS = { USD: 1, EUR: 1, GBP: 1, JPY: 1, AUD: 1, NZD: 1, CAD: 1, CHF: 1, CNY: 1 };
+var SMT_URL = "https://showmytrades.com/api/public/calendar/v1?impact=high&days=7";
+var BIQUOTE_URL = "https://biquote.io/api/calendar?importance=high&limit=500";
+var FF_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 var PROXIES = [
   function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
   function (u) { return "https://corsproxy.io/?" + encodeURIComponent(u); }
@@ -133,6 +136,56 @@ function fmtCd(ms) {
   return h ? h + "h " + ("0" + m).slice(-2) + "m" : m + ":" + ("0" + x).slice(-2);
 }
 
+function fmtNum(v, unit, mult) {
+  if (v === null || v === undefined || v === "") return "";
+  var s = String(v);
+  if (mult === "thousands") s += "K";
+  else if (mult === "millions") s += "M";
+  else if (mult === "billions") s += "B";
+  else if (mult === "trillions") s += "T";
+  if (unit === "percent") s += "%";
+  return s;
+}
+
+function normSMT(d) {
+  if (!d || !Array.isArray(d.events)) throw new Error("bad smt data");
+  return d.events.filter(function (e) {
+    return String(e.impact || "").toLowerCase() === "high";
+  }).map(function (e) {
+    return {
+      title: e.title || "",
+      country: String(e.currency || "").toUpperCase(),
+      date: e.time || (e.ts ? new Date(e.ts * 1000).toISOString() : ""),
+      impact: "High",
+      forecast: e.forecast !== null && e.forecast !== undefined ? String(e.forecast) : "",
+      previous: e.previous !== null && e.previous !== undefined ? String(e.previous) : ""
+    };
+  });
+}
+
+function normBiquote(d) {
+  if (!Array.isArray(d)) throw new Error("bad biquote data");
+  return d.filter(function (e) {
+    return String(e.importance || "").toLowerCase() === "high" &&
+           e.type !== "holiday" &&
+           MAJORS[String(e.currency || "").toUpperCase()];
+  }).map(function (e) {
+    return {
+      title: e.name || "",
+      country: String(e.currency || "").toUpperCase(),
+      date: e.time || "",
+      impact: "High",
+      forecast: fmtNum(e.forecast, e.unit, e.multiplier),
+      previous: fmtNum(e.previous, e.unit, e.multiplier)
+    };
+  });
+}
+
+function normFF(d) {
+  if (!Array.isArray(d)) throw new Error("bad ff data");
+  return d;
+}
+
 function parse(data) {
   return data
     .filter(function (e) { return e.impact === "High"; })
@@ -155,7 +208,6 @@ function fetchWithTimeout(url, ms) {
         if (done) return;
         done = true;
         clearTimeout(timer);
-        if (!Array.isArray(d)) throw new Error("bad data");
         resolve(d);
       })
       .catch(function (err) {
@@ -168,13 +220,23 @@ function fetchWithTimeout(url, ms) {
 }
 
 function fetchFeed() {
-  var urls = [FEED].concat(PROXIES.map(function (p) { return p(FEED); }));
+  var sources = [
+    { url: SMT_URL, parse: normSMT },
+    { url: PROXIES[0](SMT_URL), parse: normSMT },
+    { url: BIQUOTE_URL, parse: normBiquote },
+    { url: PROXIES[0](BIQUOTE_URL), parse: normBiquote },
+    { url: FF_URL, parse: normFF },
+    { url: PROXIES[1](FF_URL), parse: normFF }
+  ];
   var i = 0;
   var lastErr = null;
   function next(err) {
     if (err) lastErr = err;
-    if (i >= urls.length) return Promise.reject(lastErr || new Error("all failed"));
-    return fetchWithTimeout(urls[i++], 7000).catch(next);
+    if (i >= sources.length) return Promise.reject(lastErr || new Error("all failed"));
+    var src = sources[i++];
+    return fetchWithTimeout(src.url, 6000)
+      .then(function (d) { return src.parse(d); })
+      .catch(next);
   }
   return next();
 }
