@@ -1,6 +1,8 @@
 name: Build APK & OTA Update
 
 on:
+  schedule:
+    - cron: '0 */3 * * *'
   push:
     branches: [main]
   workflow_dispatch:
@@ -37,6 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch Official Forex Factory Calendar
+        run: |
+          curl -sSL "https://nfs.faireconomy.media/ff_calendar_thisweek.json" -o ff_calendar.json || echo "[]" > ff_calendar.json
       - name: Package OTA JSON
         env:
           VER: 1.0.${{ github.run_number }}
@@ -71,6 +76,7 @@ jobs:
           files: |
             app.json
             version.json
+            ff_calendar.json
 
   build-apk:
     needs: [check, web-update]
@@ -87,16 +93,6 @@ jobs:
           java-version: 21
       - run: npm install
       - run: npx cap add android
-      - name: Generate app icon
-        if: hashFiles('icon.png', 'images.png', 'assets/*') != ''
-        run: |
-          npm install --no-save @capacitor/assets
-          mkdir -p assets
-          if [ -f icon.png ]; then cp icon.png assets/logo.png
-          elif [ -f images.png ]; then cp images.png assets/logo.png
-          fi
-          BG=$(node -e "const fs=require('fs'),s=require('sharp');const src=fs.existsSync('assets/icon.png')?'assets/icon.png':'assets/logo.png';(async()=>{const {data}=await s(src).ensureAlpha().raw().toBuffer({resolveWithObject:true});const bg=data[3]<200?'#ffffff':'#'+[data[0],data[1],data[2]].map(x=>x.toString(16).padStart(2,'0')).join('');await s(src).resize(1024,1024,{fit:'contain',background:data[3]<200?{r:0,g:0,b:0,alpha:0}:bg}).png().toFile('assets/_logo.png');fs.renameSync('assets/_logo.png','assets/logo.png');console.log(bg);})();")
-          npx @capacitor/assets generate --android --iconBackgroundColor "$BG"
       - name: Disable splash screen (launch app directly)
         run: |
           sed -i 's/AppTheme\.NoActionBarLaunch/AppTheme.NoActionBar/g' android/app/src/main/AndroidManifest.xml
@@ -114,34 +110,14 @@ jobs:
       - name: Add alarm permissions
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
-      - name: Add red dot notification icon
-        run: |
-          mkdir -p android/app/src/main/res/drawable
-          cat > android/app/src/main/res/drawable/ic_stat_redfolder.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="24dp"
-              android:height="24dp"
-              android:viewportWidth="24"
-              android:viewportHeight="24">
-            <path
-                android:fillColor="#FFFFFFFF"
-                android:pathData="M12,12m-8,0a8,8 0,1,0 16,0a8,8 0,1,0 -16,0"/>
-          </vector>
-          EOF
-          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('capacitor.config.json'));c.plugins=c.plugins||{};c.plugins.LocalNotifications={smallIcon:'ic_stat_redfolder',iconColor:'#D6291F'};fs.writeFileSync('capacitor.config.json',JSON.stringify(c,null,2));"
       - run: npx cap sync android
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug
       - name: Prepare APK file
         run: cp android/app/build/outputs/apk/debug/app-debug.apk red-folder.apk
-      - name: Publish APK to GitHub Release (direct .apk, no zip)
+      - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: apk-latest
           name: Red Folder APK
           files: red-folder.apk
-      - name: Upload APK artifact (no zip)
-        uses: actions/upload-artifact@v7
-        with:
-          path: red-folder.apk
-          archive: false
