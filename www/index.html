@@ -221,12 +221,12 @@ function fetchWithTimeout(url, ms) {
 
 function fetchFeed() {
   var sources = [
-    { url: SMT_URL, parse: normSMT },
-    { url: PROXIES[0](SMT_URL), parse: normSMT },
-    { url: BIQUOTE_URL, parse: normBiquote },
-    { url: PROXIES[0](BIQUOTE_URL), parse: normBiquote },
-    { url: FF_URL, parse: normFF },
-    { url: PROXIES[1](FF_URL), parse: normFF }
+    { name: "ShowMyTrades", url: SMT_URL, parse: normSMT },
+    { name: "ShowMyTrades Proxy", url: PROXIES[0](SMT_URL), parse: normSMT },
+    { name: "biquote", url: BIQUOTE_URL, parse: normBiquote },
+    { name: "biquote Proxy", url: PROXIES[0](BIQUOTE_URL), parse: normBiquote },
+    { name: "ForexFactory", url: FF_URL, parse: normFF },
+    { name: "ForexFactory Proxy", url: PROXIES[1](FF_URL), parse: normFF }
   ];
   var i = 0;
   var lastErr = null;
@@ -234,8 +234,8 @@ function fetchFeed() {
     if (err) lastErr = err;
     if (i >= sources.length) return Promise.reject(lastErr || new Error("all failed"));
     var src = sources[i++];
-    return fetchWithTimeout(src.url, 6000)
-      .then(function (d) { return src.parse(d); })
+    return fetchWithTimeout(src.url, 8000)
+      .then(function (d) { return { src: src.name, data: src.parse(d) }; })
       .catch(next);
   }
   return next();
@@ -366,7 +366,8 @@ function load(force) {
   setLoading(true);
   st.className = "status";
   st.textContent = "Loading…";
-  return fetchFeed().then(function (data) {
+  return fetchFeed().then(function (res) {
+    var data = res.data;
     var raw = JSON.stringify(data);
     var changed = raw !== lastRaw;
     lastRaw = raw;
@@ -374,11 +375,12 @@ function load(force) {
     save("rf_cache", raw);
     save("rf_time", String(Date.now()));
     st.className = "status";
-    st.textContent = "Updated " + fmtTime(new Date());
+    st.textContent = "Updated (" + res.src + ") " + fmtTime(new Date());
     var today = render();
     notify(today);
     if (changed || !force) autoSchedule();
   }).catch(function (err) {
+    var msg = String(err && err.message ? err.message : "error");
     if (cached) {
       if (!events.length) {
         try { events = parse(JSON.parse(cached)); } catch (e) { events = []; }
@@ -386,12 +388,11 @@ function load(force) {
         autoSchedule();
       }
       var t = new Date(cachedAt);
-      var msg = String(err && err.message || "");
       st.className = "status" + (Date.now() - cachedAt > 6 * 3600 * 1000 ? " err" : "");
-      st.textContent = (msg.indexOf("429") >= 0 ? "Feed rate-limit (thori der baad try karein)" : "Feed busy/offline") + " \u2022 Data: " + fmtTime(t);
+      st.textContent = (msg.indexOf("429") >= 0 ? "Feed rate-limit" : "Feed error: " + msg) + " \u2022 Data: " + fmtTime(t);
     } else {
       st.className = "status err";
-      st.textContent = "News load nahi hui. Internet check karke Refresh dabayein.";
+      st.textContent = "News load nahi hui (" + msg + "). Refresh dabayein.";
       render();
     }
   }).then(function () { setLoading(false); });
@@ -451,176 +452,3 @@ function buildAlerts(list) {
     var base = new Date(dayKey(new Date(now)) + "T00:00:00+05:00").getTime();
     for (var d = 0; d < 7; d++) {
       SL_REMINDERS.forEach(function (r) {
-        var at2 = base + d * 86400000 + r.hour * 3600000;
-        if (at2 <= now) return;
-        out.push(mk(r.key + at2, r.title, "", at2));
-      });
-    }
-  }
-  return out;
-}
-function autoSchedule() {
-  var LN = getLN(), s = $("sched");
-  s.className = "status";
-  if (!LN) {
-    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
-    s.textContent = "Browser mode: alerts auto-on (page khula rakhein).";
-    return Promise.resolve();
-  }
-  return setupAlerts(LN).then(function (ok) {
-    if (!ok) { s.className = "status err"; s.textContent = "Notifications band hain. Phone Settings > Apps > Red Folder > Notifications on karein."; return; }
-    var items = buildAlerts(events);
-    return LN.getPending().then(function (p) {
-      return p.notifications.length ? LN.cancel({ notifications: p.notifications.map(function (n) { return { id: n.id }; }) }) : null;
-    }).then(function () {
-      return items.length ? LN.schedule({ notifications: items }) : null;
-    }).then(function () {
-      s.textContent = "Alerts auto-on \u2022 " + items.length + " alerts set (agle 7 din ke liye)";
-    });
-  }).catch(function (e) { s.className = "status err"; s.textContent = "Alerts set nahi hue: " + (e && e.message ? e.message : e); });
-}
-
-var testBusy = false;
-function countdown(lbl, at) {
-  function tick() {
-    var left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
-    lbl.textContent = left + "s";
-    if (left > 0) { setTimeout(tick, 200); return; }
-    setTimeout(function () { lbl.textContent = "Test"; testBusy = false; }, 1500);
-  }
-  tick();
-}
-$("testbtn").onclick = function () {
-  var LN = getLN(), s = $("sched"), btn = $("testbtn"), lbl = btn.querySelector("span");
-  if (testBusy) return;
-  if (!LN) {
-    s.className = "status";
-    s.textContent = "Test sirf APK mein chalta hai.";
-    if (lbl) { lbl.textContent = "APK"; setTimeout(function () { lbl.textContent = "Test"; }, 2000); }
-    return;
-  }
-  testBusy = true;
-  setupAlerts(LN).then(function (ok) {
-    if (!ok) { testBusy = false; s.className = "status err"; s.textContent = "Notification permission allow karein."; return; }
-    var at = Date.now() + 10000;
-    return LN.schedule({ notifications: [{ id: 999999999, title: "Test: red folder alert", body: "Ye dikh raha hai to alerts theek hain.", schedule: { at: new Date(at), allowWhileIdle: true }, channelId: "redfolder" }] })
-      .then(function () {
-        s.className = "status";
-        s.textContent = "Test alert 10 second mein aayega. App minimize kar dein.";
-        if (lbl) countdown(lbl, at); else testBusy = false;
-      });
-  }).catch(function (e) { testBusy = false; s.className = "status err"; s.textContent = "Test fail: " + (e && e.message ? e.message : e); });
-};
-
-function verNum(v) {
-  var m = String(v || "").match(/(\d+)$/);
-  return m ? Number(m[1]) : 0;
-}
-function b64ToUtf8(b64) {
-  var bin = atob(b64);
-  var bytes = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder("utf-8").decode(bytes);
-}
-function parseRemoteJson(txt) {
-  var s = String(txt || "").trim();
-  if (!s) throw new Error("empty response");
-  if (s.charAt(0) !== "{") s = b64ToUtf8(s);
-  return JSON.parse(s);
-}
-var otaBusy = false;
-var lastOtaCheck = 0;
-function checkWebUpdate() {
-  var elOta = $("ota");
-  var repo = window.CURRENT_REPO || "";
-  var curVer = window.CURRENT_VER || "";
-  if (!window.Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
-  if (!repo || repo.indexOf("__") === 0) return;
-  if (otaBusy || Date.now() - lastOtaCheck < 15000) return;
-  otaBusy = true;
-  lastOtaCheck = Date.now();
-  elOta.className = "status";
-  elOta.textContent = "OTA v" + curVer + " checking…";
-  var base = "https://github.com/" + repo + "/releases/download/web-latest/";
-  fetch(base + "version.json?t=" + Date.now(), { cache: "no-store" })
-    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-    .then(parseRemoteJson)
-    .then(function (remote) {
-      if (!remote || !remote.version) throw new Error("bad version.json");
-      if (verNum(remote.version) <= verNum(curVer)) {
-        elOta.textContent = "OTA v" + curVer + " (latest)";
-        return;
-      }
-      elOta.textContent = "Updating v" + curVer + " \u2192 v" + remote.version + "…";
-      return fetch(base + "app.json?t=" + Date.now(), { cache: "no-store" })
-        .then(function (r) { if (!r.ok) throw new Error("app HTTP " + r.status); return r.text(); })
-        .then(parseRemoteJson)
-        .then(function (bundle) {
-          if (!bundle || !bundle.version || !bundle.css || !bundle.body || !bundle.js) throw new Error("bad app.json");
-          save("rf_ota_bundle", JSON.stringify(bundle));
-          location.reload();
-        });
-    })
-    .catch(function (e) {
-      elOta.className = "status err";
-      elOta.textContent = "OTA v" + curVer + " error: " + (e && e.message ? e.message : e);
-    })
-    .then(function () { otaBusy = false; });
-}
-
-function tickLive() {
-  var now = new Date();
-  updateClock(now);
-  var c = document.querySelector(".cd");
-  if (c) c.textContent = fmtCd(Number(c.getAttribute("data-t")) - now.getTime());
-  var sig = stateSig(now);
-  if (events.length && sig !== lastStateKey) {
-    var dayChanged = dayKey(now) !== lastDayKey;
-    render();
-    if (dayChanged) autoSchedule();
-  }
-}
-
-var saved = read("rf_filter");
-if (saved) filter = saved;
-checkWebUpdate();
-load(false);
-setInterval(tickLive, 1000);
-document.addEventListener("visibilitychange", function () { if (!document.hidden) checkWebUpdate(); });
-//JS_END
-</script>
-
-<script id="app-boot">
-(function () {
-  var BUILTIN_VER = "__OTA_VER__";
-  var OTA_REPO = "__OTA_REPO__";
-  function vNum(v) {
-    var m = String(v || "").match(/(\d+)$/);
-    return m ? Number(m[1]) : 0;
-  }
-  window.CURRENT_REPO = OTA_REPO;
-  var applied = false;
-  try {
-    var raw = localStorage.getItem("rf_ota_bundle");
-    if (raw) {
-      var b = JSON.parse(raw);
-      if (b && b.version && b.css && b.body && b.js && vNum(b.version) > vNum(BUILTIN_VER)) {
-        document.getElementById("app-css").textContent = b.css;
-        document.getElementById("app-root").innerHTML = b.body;
-        window.CURRENT_VER = b.version;
-        (new Function(b.js))();
-        applied = true;
-      }
-    }
-  } catch (e) {
-    try { localStorage.removeItem("rf_ota_bundle"); } catch (x) {}
-    applied = false;
-  }
-  if (!applied) {
-    window.CURRENT_VER = BUILTIN_VER;
-    (new Function(document.getElementById("app-js").textContent))();
-  }
-})();
-</script>
-</body>
-</html>
