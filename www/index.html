@@ -97,14 +97,7 @@ button:active{transform:scale(.96)}
 
 <script id="app-js" type="text/plain">
 //JS_START
-var MAJORS = { USD: 1, EUR: 1, GBP: 1, JPY: 1, AUD: 1, NZD: 1, CAD: 1, CHF: 1, CNY: 1 };
-var SMT_URL = "https://showmytrades.com/api/public/calendar/v1?impact=high&days=7";
-var BIQUOTE_URL = "https://biquote.io/api/calendar?importance=high&limit=500";
 var FF_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
-var PROXIES = [
-  function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
-  function (u) { return "https://corsproxy.io/?" + encodeURIComponent(u); }
-];
 var $ = function (id) { return document.getElementById(id); };
 var events = [];
 var filter = "ALL";
@@ -136,57 +129,8 @@ function fmtCd(ms) {
   return h ? h + "h " + ("0" + m).slice(-2) + "m" : m + ":" + ("0" + x).slice(-2);
 }
 
-function fmtNum(v, unit, mult) {
-  if (v === null || v === undefined || v === "") return "";
-  var s = String(v);
-  if (mult === "thousands") s += "K";
-  else if (mult === "millions") s += "M";
-  else if (mult === "billions") s += "B";
-  else if (mult === "trillions") s += "T";
-  if (unit === "percent") s += "%";
-  return s;
-}
-
-function normSMT(d) {
-  if (!d || !Array.isArray(d.events)) throw new Error("bad smt data");
-  return d.events.filter(function (e) {
-    return String(e.impact || "").toLowerCase() === "high";
-  }).map(function (e) {
-    return {
-      title: e.title || "",
-      country: String(e.currency || "").toUpperCase(),
-      date: e.time || (e.ts ? new Date(e.ts * 1000).toISOString() : ""),
-      impact: "High",
-      forecast: e.forecast !== null && e.forecast !== undefined ? String(e.forecast) : "",
-      previous: e.previous !== null && e.previous !== undefined ? String(e.previous) : ""
-    };
-  });
-}
-
-function normBiquote(d) {
-  if (!Array.isArray(d)) throw new Error("bad biquote data");
-  return d.filter(function (e) {
-    return String(e.importance || "").toLowerCase() === "high" &&
-           e.type !== "holiday" &&
-           MAJORS[String(e.currency || "").toUpperCase()];
-  }).map(function (e) {
-    return {
-      title: e.name || "",
-      country: String(e.currency || "").toUpperCase(),
-      date: e.time || "",
-      impact: "High",
-      forecast: fmtNum(e.forecast, e.unit, e.multiplier),
-      previous: fmtNum(e.previous, e.unit, e.multiplier)
-    };
-  });
-}
-
-function normFF(d) {
-  if (!Array.isArray(d)) throw new Error("bad ff data");
-  return d;
-}
-
 function parse(data) {
+  if (!Array.isArray(data)) return [];
   return data
     .filter(function (e) { return e.impact === "High"; })
     .map(function (e) { e.d = new Date(e.date); return e; })
@@ -208,6 +152,7 @@ function fetchWithTimeout(url, ms) {
         if (done) return;
         done = true;
         clearTimeout(timer);
+        if (!Array.isArray(d)) throw new Error("bad json");
         resolve(d);
       })
       .catch(function (err) {
@@ -220,22 +165,24 @@ function fetchWithTimeout(url, ms) {
 }
 
 function fetchFeed() {
-  var sources = [
-    { name: "ShowMyTrades", url: SMT_URL, parse: normSMT },
-    { name: "ShowMyTrades Proxy", url: PROXIES[0](SMT_URL), parse: normSMT },
-    { name: "biquote", url: BIQUOTE_URL, parse: normBiquote },
-    { name: "biquote Proxy", url: PROXIES[0](BIQUOTE_URL), parse: normBiquote },
-    { name: "ForexFactory", url: FF_URL, parse: normFF },
-    { name: "ForexFactory Proxy", url: PROXIES[1](FF_URL), parse: normFF }
-  ];
+  var repo = window.CURRENT_REPO || "";
+  var ghMirror = (repo && repo.indexOf("__") !== 0)
+    ? "https://github.com/" + repo + "/releases/download/web-latest/ff_calendar.json?t=" + Date.now()
+    : "";
+  var urls = [
+    { name: "ForexFactory (Mirror)", url: ghMirror },
+    { name: "ForexFactory", url: FF_URL },
+    { name: "ForexFactory (Proxy)", url: "https://corsproxy.io/?" + encodeURIComponent(FF_URL) }
+  ].filter(function (u) { return !!u.url; });
+
   var i = 0;
   var lastErr = null;
   function next(err) {
     if (err) lastErr = err;
-    if (i >= sources.length) return Promise.reject(lastErr || new Error("all failed"));
-    var src = sources[i++];
-    return fetchWithTimeout(src.url, 8000)
-      .then(function (d) { return { src: src.name, data: src.parse(d) }; })
+    if (i >= urls.length) return Promise.reject(lastErr || new Error("all failed"));
+    var target = urls[i++];
+    return fetchWithTimeout(target.url, 7000)
+      .then(function (data) { return { name: target.name, data: data }; })
       .catch(next);
   }
   return next();
@@ -367,15 +314,14 @@ function load(force) {
   st.className = "status";
   st.textContent = "Loading…";
   return fetchFeed().then(function (res) {
-    var data = res.data;
-    var raw = JSON.stringify(data);
+    var raw = JSON.stringify(res.data);
     var changed = raw !== lastRaw;
     lastRaw = raw;
-    events = parse(data);
+    events = parse(res.data);
     save("rf_cache", raw);
     save("rf_time", String(Date.now()));
     st.className = "status";
-    st.textContent = "Updated (" + res.src + ") " + fmtTime(new Date());
+    st.textContent = "Updated (" + res.name + ") " + fmtTime(new Date());
     var today = render();
     notify(today);
     if (changed || !force) autoSchedule();
@@ -389,7 +335,7 @@ function load(force) {
       }
       var t = new Date(cachedAt);
       st.className = "status" + (Date.now() - cachedAt > 6 * 3600 * 1000 ? " err" : "");
-      st.textContent = (msg.indexOf("429") >= 0 ? "Feed rate-limit" : "Feed error: " + msg) + " \u2022 Data: " + fmtTime(t);
+      st.textContent = (msg.indexOf("429") >= 0 ? "Feed rate-limit" : "Feed: " + msg) + " \u2022 Data: " + fmtTime(t);
     } else {
       st.className = "status err";
       st.textContent = "News load nahi hui (" + msg + "). Refresh dabayein.";
